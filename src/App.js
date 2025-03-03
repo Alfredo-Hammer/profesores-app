@@ -9,6 +9,7 @@ import Asistencias from "./pages/Asistencias";
 import Calendario from "./pages/Calendario";
 import Reportes from "./pages/Reportes";
 import Configuracion from "./pages/Configuracion";
+import Escuelas from "./pages/Escuelas";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -34,6 +35,7 @@ function App() {
         <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
         <Route path="/alumnos" element={<ProtectedRoute><Layout><Alumnos /></Layout></ProtectedRoute>} />
         <Route path="/clases" element={<ProtectedRoute><Layout><Clases /></Layout></ProtectedRoute>} />
+        <Route path="/escuelas" element={<ProtectedRoute><Layout><Escuelas /></Layout></ProtectedRoute>} />
         <Route path="/tareas" element={<ProtectedRoute><Layout><Tareas /></Layout></ProtectedRoute>} />
         <Route path="/asistencias" element={<ProtectedRoute><Layout><Asistencias /></Layout></ProtectedRoute>} />
         <Route path="/calendario" element={<ProtectedRoute><Layout><Calendario /></Layout></ProtectedRoute>} />

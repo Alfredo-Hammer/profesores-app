@@ -22,15 +22,14 @@ const Layout = ({ children }) => {
           <MenuItem to="/" icon={<Home size={20} />} text="Dashboard" />
           <MenuItem to="/alumnos" icon={<Users size={20} />} text="Alumnos" />
           <MenuItem to="/clases" icon={<BookOpen size={20} />} text="Clases" />
+          <MenuItem to="/escuelas" icon={<Users size={20} />} text="Escuelas" />
           <MenuItem to="/tareas" icon={<FileText size={20} />} text="Tareas" />
           <MenuItem to="/asistencias" icon={<CheckSquare size={20} />} text="Asistencias" />
           <MenuItem to="/calendario" icon={<Calendar size={20} />} text="Calendario" />
           <MenuItem to="/reportes" icon={<BarChart size={20} />} text="Reportes" />
           <MenuItem to="/configuracion" icon={<Settings size={20} />} text="Configuración" />
         </ul>
-        <button onClick={handleLogout} className="bg-red-600 px-4 py-2 rounded-md">
-          Cerrar sesión
-        </button>
+
       </div>
 
       {/* Contenido Principal */}
