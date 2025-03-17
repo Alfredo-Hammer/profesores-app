@@ -1,28 +1,18 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Home, Users, BookOpen, FileText, CheckSquare, Calendar, BarChart, Settings } from "lucide-react";
-import { auth } from "../firebaseConfig";
-import { signOut } from "firebase/auth";
-
+import { Link } from "react-router-dom";
+import { Home, Users, BookOpen, FileText, CheckSquare, Calendar, BarChart, Settings, School } from "lucide-react";
 const Layout = ({ children }) => {
-
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    navigate("/login");
-  };
 
   return (
     <div className="flex h-screen bg-gray-900 text-gray-200">
       {/* Sidebar */}
       <div className="w-64 bg-gray-800 p-5 shadow-lg">
-        <h2 className="text-2xl font-bold text-white mb-5">ProfesoresApp</h2>
+        <h2 className="text-2xl font-bold text-white mb-5">Bilwi Teacher</h2>
         <ul className="space-y-4">
           <MenuItem to="/" icon={<Home size={20} />} text="Dashboard" />
           <MenuItem to="/alumnos" icon={<Users size={20} />} text="Alumnos" />
           <MenuItem to="/clases" icon={<BookOpen size={20} />} text="Clases" />
-          <MenuItem to="/escuelas" icon={<Users size={20} />} text="Escuelas" />
+          <MenuItem to="/escuelas" icon={<School size={20} />} text="Escuelas" />
           <MenuItem to="/tareas" icon={<FileText size={20} />} text="Tareas" />
           <MenuItem to="/asistencias" icon={<CheckSquare size={20} />} text="Asistencias" />
           <MenuItem to="/calendario" icon={<Calendar size={20} />} text="Calendario" />
