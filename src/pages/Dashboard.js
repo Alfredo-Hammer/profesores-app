@@ -25,7 +25,7 @@ const Dashboard = () => {
     try {
       const clasesQuery = query(collection(db, "clases"), where("profesorId", "==", profesorId));
       const clasesSnapshot = await getDocs(clasesQuery);
-      const claseIds = clasesSnapshot.docs.map(doc => doc.id); // Obtener los IDs de las clases
+      const claseIds = clasesSnapshot.docs.map(doc => doc.id);
 
       let totalAsistencias = 0;
       for (const claseId of claseIds) {
@@ -39,7 +39,6 @@ const Dashboard = () => {
       console.error("Error al cargar asistencias:", error);
     }
   };
-
 
   const fetchDashboardData = async () => {
     try {
@@ -55,8 +54,7 @@ const Dashboard = () => {
       const escuelasSnapshot = await getDocs(escuelasQuery);
       setEscuelas(escuelasSnapshot.size);
 
-
-      await fetchAsistencias(); // Llamar a la nueva función para contar asistencias
+      await fetchAsistencias();
 
       setLoading(false);
     } catch (error) {

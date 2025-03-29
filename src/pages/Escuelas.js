@@ -4,6 +4,7 @@ import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc } 
 import { Dialog } from "@headlessui/react";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import Header from "../components/Header";
+import { toast } from "react-toastify";
 
 const Escuelas = () => {
   const [escuelas, setEscuelas] = useState([]);
@@ -14,6 +15,8 @@ const Escuelas = () => {
     nombre: "",
     direccion: "",
     telefono: "",
+    correo: "", // Nuevo campo
+    director: "", // Nuevo campo
   });
 
   const profesorId = auth.currentUser?.uid;
@@ -31,6 +34,7 @@ const Escuelas = () => {
       setEscuelas(escuelasData);
     } catch (error) {
       console.error("Error al cargar las escuelas:", error);
+      toast.error("Error al cargar las escuelas.");
     }
   };
 
@@ -42,28 +46,38 @@ const Escuelas = () => {
     e.preventDefault();
     if (!profesorId) {
       console.error("Usuario no autenticado.");
+      toast.error("Usuario no autenticado.");
       return;
     }
 
     try {
       if (selectedEscuela) {
         await updateDoc(doc(db, "escuelas", selectedEscuela.id), formData);
+        toast.success("Escuela actualizada correctamente.");
       } else {
         await addDoc(collection(db, "escuelas"), { ...formData, profesorId, createdAt: new Date() });
+        toast.success("Escuela creada correctamente.");
       }
 
       setIsModalOpen(false);
-      setFormData({ nombre: "", direccion: "", telefono: "" });
+      setFormData({ nombre: "", direccion: "", telefono: "", correo: "", director: "" });
       setSelectedEscuela(null);
       fetchEscuelas();
     } catch (error) {
       console.error("Error al guardar escuela:", error);
+      toast.error("Error al guardar la escuela.");
     }
   };
 
   const handleEditEscuela = (escuela) => {
     setSelectedEscuela(escuela);
-    setFormData({ nombre: escuela.nombre, direccion: escuela.direccion, telefono: escuela.telefono });
+    setFormData({
+      nombre: escuela.nombre,
+      direccion: escuela.direccion,
+      telefono: escuela.telefono,
+      correo: escuela.correo || "",
+      director: escuela.director || "",
+    });
     setIsModalOpen(true);
   };
 
@@ -71,10 +85,12 @@ const Escuelas = () => {
     if (!selectedEscuela) return;
     try {
       await deleteDoc(doc(db, "escuelas", selectedEscuela.id));
+      toast.success("Escuela eliminada correctamente.");
       setIsDeleteDialogOpen(false);
       fetchEscuelas();
     } catch (error) {
       console.error("Error al eliminar escuela:", error);
+      toast.error("Error al eliminar la escuela.");
     }
   };
 
@@ -104,6 +120,8 @@ const Escuelas = () => {
               <h2 className="text-xl font-bold">{escuela.nombre}</h2>
               <p className="text-gray-400">📍 {escuela.direccion}</p>
               <p className="text-gray-500 text-sm">📞 {escuela.telefono}</p>
+              {escuela.correo && <p className="text-gray-500 text-sm">✉️ {escuela.correo}</p>}
+              {escuela.director && <p className="text-gray-500 text-sm">👨‍🏫 Director: {escuela.director}</p>}
             </div>
           ))}
         </div>
@@ -116,6 +134,8 @@ const Escuelas = () => {
             <input type="text" name="nombre" placeholder="Nombre de la Escuela" value={formData.nombre} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" required />
             <input type="text" name="direccion" placeholder="Dirección" value={formData.direccion} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" required />
             <input type="text" name="telefono" placeholder="Teléfono" value={formData.telefono} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" required />
+            <input type="email" name="correo" placeholder="Correo Electrónico" value={formData.correo} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" />
+            <input type="text" name="director" placeholder="Nombre del Director" value={formData.director} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" />
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setIsModalOpen(false)} className="bg-gray-600 px-4 py-2 rounded">Cancelar</button>
               <button type="submit" className="bg-blue-600 px-4 py-2 rounded">Guardar</button>

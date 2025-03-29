@@ -11,6 +11,7 @@ const Layout = ({ children }) => {
         <ul className="space-y-4">
           <MenuItem to="/" icon={<Home size={20} />} text="Dashboard" />
           <MenuItem to="/alumnos" icon={<Users size={20} />} text="Alumnos" />
+          <MenuItem to="/materias" icon={<BookOpen size={20} />} text="Materias" />
           <MenuItem to="/clases" icon={<BookOpen size={20} />} text="Clases" />
           <MenuItem to="/escuelas" icon={<School size={20} />} text="Escuelas" />
           <MenuItem to="/tareas" icon={<FileText size={20} />} text="Tareas" />

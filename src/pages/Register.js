@@ -3,6 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { setDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { toast } from "react-toastify";
+
+const esEmailValido = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+};
+
+const esEmailUnico = async (email) => {
+  const q = query(collection(db, "users"), where("email", "==", email));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.empty; // Retorna `true` si el email no existe
+};
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -11,11 +24,9 @@ const Register = () => {
     email: "",
     password: "",
     escuela: "",
-    etnia: "",
     role: "alumno", // Valor por defecto
   });
 
-  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -24,139 +35,137 @@ const Register = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setError("");
 
-    const { nombre, apellido, email, password, escuela, etnia, role } = formData;
+    const { nombre, apellido, email, password, escuela, role } = formData;
 
-    if (!nombre || !apellido || !email || !password || !escuela || !etnia || !role) {
-      setError("Todos los campos son obligatorios");
+    if (!nombre || !apellido || !email || !password || !escuela || !role) {
+      toast.error("Todos los campos son obligatorios");
       return;
     }
 
+    if (!["profesor", "alumno", "padre"].includes(role)) {
+      toast.error("Rol inválido seleccionado");
+      return;
+    }
+
+    console.log("Datos del formulario:", formData);
+
     try {
+      // Crear el usuario en Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Guardar los datos en Firestore
+      // Guardar los datos del usuario en la colección "users"
       await setDoc(doc(db, "users", user.uid), {
         nombre,
         apellido,
         email,
         escuela,
-        etnia,
         role,
+        createdAt: new Date(),
       });
 
-      // Guardar el rol en localStorage
+      toast.success("Usuario registrado correctamente");
       localStorage.setItem("role", role);
 
+      // Redirigir al dashboard
       navigate("/dashboard");
       window.location.reload();
     } catch (error) {
-      setError("Error al registrar usuario");
-      console.log(error);
+      toast.error("Error al registrar usuario");
+      console.error("Error al registrar:", error);
     }
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-900 text-white">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-[500px] max-w-xl">
+      <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-[800px] max-w-xl">
         <h2 className="text-2xl font-bold text-center mb-6">Registro</h2>
-
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        <p className="text-gray-400 text-sm mb-4 text-center pb-3">
+          Sistema de Registro para la Plataforma Educativa
+        </p>
 
         <form onSubmit={handleRegister}>
-          <div className="mb-4">
-            <label className="block text-gray-300">Nombre</label>
-            <input
-              type="text"
-              name="nombre"
-              className="w-full p-3 rounded bg-gray-700"
-              placeholder="Tu nombre"
-              value={formData.nombre}
-              onChange={handleChange}
-              required
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-300">Nombre</label>
+              <input
+                type="text"
+                name="nombre"
+                className="w-full p-3 rounded bg-gray-700"
+                placeholder="Tu nombre"
+                value={formData.nombre}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-          <div className="mb-4">
-            <label className="block text-gray-300">Apellido</label>
-            <input
-              type="text"
-              name="apellido"
-              className="w-full p-3 rounded bg-gray-700"
-              placeholder="Tu apellido"
-              value={formData.apellido}
-              onChange={handleChange}
-              required
-            />
-          </div>
+            <div>
+              <label className="block text-gray-300">Apellido</label>
+              <input
+                type="text"
+                name="apellido"
+                className="w-full p-3 rounded bg-gray-700"
+                placeholder="Tu apellido"
+                value={formData.apellido}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-          <div className="mb-4">
-            <label className="block text-gray-300">Correo Electrónico</label>
-            <input
-              type="email"
-              name="email"
-              className="w-full p-3 rounded bg-gray-700"
-              placeholder="tuemail@ejemplo.com"
-              value={formData.email}
-              onChange={handleChange}
-              required
-            />
-          </div>
+            <div>
+              <label className="block text-gray-300">Correo Electrónico</label>
+              <input
+                type="email"
+                name="email"
+                className="w-full p-3 rounded bg-gray-700"
+                placeholder="tuemail@ejemplo.com"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-          <div className="mb-4">
-            <label className="block text-gray-300">Contraseña</label>
-            <input
-              type="password"
-              name="password"
-              className="w-full p-3 rounded bg-gray-700"
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={handleChange}
-              required
-            />
-          </div>
+            <div>
+              <label className="block text-gray-300">Contraseña</label>
+              <input
+                type="password"
+                name="password"
+                className="w-full p-3 rounded bg-gray-700"
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-          <div className="mb-4">
-            <label className="block text-gray-300">Nombre de la Escuela</label>
-            <input
-              type="text"
-              name="escuela"
-              className="w-full p-3 rounded bg-gray-700"
-              placeholder="Nombre de tu escuela"
-              value={formData.escuela}
-              onChange={handleChange}
-              required
-            />
-          </div>
+            <div>
+              <label className="block text-gray-300">Nombre de la Escuela</label>
+              <input
+                type="text"
+                name="escuela"
+                className="w-full p-3 rounded bg-gray-700"
+                placeholder="Nombre de tu escuela"
+                value={formData.escuela}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-          <div className="mb-4">
-            <label className="block text-gray-300">Etnia</label>
-            <input
-              type="text"
-              name="etnia"
-              className="w-full p-3 rounded bg-gray-700"
-              placeholder="Tu etnia"
-              value={formData.etnia}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-300">Rol</label>
-            <select
-              name="role"
-              className="w-full p-3 rounded bg-gray-700"
-              value={formData.role}
-              onChange={handleChange}
-              required
-            >
-              <option value="profesor">Profesor</option>
-              <option value="alumno">Alumno</option>
-              <option value="padre">Padre</option>
-            </select>
+            <div>
+              <label className="block text-gray-300">Rol</label>
+              <select
+                name="role"
+                className="w-full p-3 rounded bg-gray-700 mb-6"
+                value={formData.role}
+                onChange={handleChange}
+                required
+              >
+                <option value="profesor">Profesor</option>
+                <option value="alumno">Alumno</option>
+                <option value="padre">Padre</option>
+              </select>
+            </div>
           </div>
 
           <button
