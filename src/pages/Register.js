@@ -23,7 +23,6 @@ const Register = () => {
     apellido: "",
     email: "",
     password: "",
-    escuela: "",
     role: "alumno", // Valor por defecto
   });
 
@@ -36,9 +35,9 @@ const Register = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    const { nombre, apellido, email, password, escuela, role } = formData;
+    const { nombre, apellido, email, password, role } = formData;
 
-    if (!nombre || !apellido || !email || !password || !escuela || !role) {
+    if (!nombre || !apellido || !email || !password || !role) {
       toast.error("Todos los campos son obligatorios");
       return;
     }
@@ -60,7 +59,6 @@ const Register = () => {
         nombre,
         apellido,
         email,
-        escuela,
         role,
         createdAt: new Date(),
       });
@@ -78,9 +76,16 @@ const Register = () => {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-900 text-white">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-[800px] max-w-xl">
-        <h2 className="text-2xl font-bold text-center mb-6">Registro</h2>
+    <div
+      className="flex justify-center items-center min-h-screen bg-gray-900 text-white"
+      style={{
+        backgroundImage: "url('https://fondosmil.co/fondo/121125.jpg')", // Ruta de la imagen de fondo
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <div className="bg-gray-800 bg-opacity-90 p-8 rounded-lg shadow-lg w-[800px] max-w-xl">
+        <h2 className="text-3xl font-bold text-center mb-6 text-blue-400">Registro</h2>
         <p className="text-gray-400 text-sm mb-4 text-center pb-3">
           Sistema de Registro para la Plataforma Educativa
         </p>
@@ -134,19 +139,6 @@ const Register = () => {
                 className="w-full p-3 rounded bg-gray-700"
                 placeholder="••••••••"
                 value={formData.password}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-300">Nombre de la Escuela</label>
-              <input
-                type="text"
-                name="escuela"
-                className="w-full p-3 rounded bg-gray-700"
-                placeholder="Nombre de tu escuela"
-                value={formData.escuela}
                 onChange={handleChange}
                 required
               />

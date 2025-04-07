@@ -1,29 +1,29 @@
 import React, { useState, useEffect } from "react";
 import { auth, db } from "../firebaseConfig";
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch } from "firebase/firestore";
 import { Dialog } from "@headlessui/react";
-import { Plus, Edit, Trash2 } from "lucide-react";
-import Header from "../components/Header";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "react-toastify";
+import Header from "../components/Header";
 
 const Escuelas = () => {
   const [escuelas, setEscuelas] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedEscuela, setSelectedEscuela] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({
     nombre: "",
     direccion: "",
     telefono: "",
-    correo: "", // Nuevo campo
-    director: "", // Nuevo campo
+    email: "",
+    directorNombre: "",
   });
-
   const profesorId = auth.currentUser?.uid;
 
   useEffect(() => {
     fetchEscuelas();
   }, []);
+
 
   const fetchEscuelas = async () => {
     if (!profesorId) return;
@@ -31,65 +31,113 @@ const Escuelas = () => {
       const q = query(collection(db, "escuelas"), where("profesorId", "==", profesorId));
       const querySnapshot = await getDocs(q);
       const escuelasData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      // Ordenar por el campo 'orden'
+      escuelasData.sort((a, b) => (a.orden || 0) - (b.orden || 0));
       setEscuelas(escuelasData);
     } catch (error) {
       console.error("Error al cargar las escuelas:", error);
-      toast.error("Error al cargar las escuelas.");
     }
   };
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleGuardarEscuela = async (e) => {
-    e.preventDefault();
-    if (!profesorId) {
-      console.error("Usuario no autenticado.");
-      toast.error("Usuario no autenticado.");
+  const handleAddOrUpdateEscuela = async () => {
+    if (!formData.nombre.trim()) {
+      toast.error("El nombre de la escuela no puede estar vacío.");
       return;
     }
 
     try {
-      if (selectedEscuela) {
-        await updateDoc(doc(db, "escuelas", selectedEscuela.id), formData);
+      if (isEditMode) {
+        // Actualizar escuela
+        const escuelaRef = doc(db, "escuelas", editId);
+        await updateDoc(escuelaRef, { ...formData });
         toast.success("Escuela actualizada correctamente.");
       } else {
-        await addDoc(collection(db, "escuelas"), { ...formData, profesorId, createdAt: new Date() });
+        // Obtener el valor máximo de 'orden' existente
+        const q = query(collection(db, "escuelas"), where("profesorId", "==", profesorId));
+        const querySnapshot = await getDocs(q);
+        const maxOrden = querySnapshot.docs.reduce((max, doc) => {
+          const data = doc.data();
+          return data.orden > max ? data.orden : max;
+        }, 0);
+
+        // Crear nueva escuela con el siguiente valor de 'orden'
+        await addDoc(collection(db, "escuelas"), {
+          ...formData,
+          profesorId: profesorId,
+          createdAt: new Date(),
+          orden: maxOrden + 1,
+        });
         toast.success("Escuela creada correctamente.");
       }
 
+      setFormData({
+        nombre: "",
+        direccion: "",
+        telefono: "",
+        email: "",
+        directorNombre: "",
+      });
       setIsModalOpen(false);
-      setFormData({ nombre: "", direccion: "", telefono: "", correo: "", director: "" });
-      setSelectedEscuela(null);
+      setIsEditMode(false);
       fetchEscuelas();
     } catch (error) {
-      console.error("Error al guardar escuela:", error);
+      console.error("Error al guardar la escuela:", error);
       toast.error("Error al guardar la escuela.");
     }
   };
 
-  const handleEditEscuela = (escuela) => {
-    setSelectedEscuela(escuela);
+  const handleEdit = (escuela) => {
     setFormData({
       nombre: escuela.nombre,
-      direccion: escuela.direccion,
-      telefono: escuela.telefono,
-      correo: escuela.correo || "",
-      director: escuela.director || "",
+      direccion: escuela.direccion || "",
+      telefono: escuela.telefono || "",
+      email: escuela.email || "",
+      directorNombre: escuela.directorNombre || "", // Nuevo campo
+      orden: escuela.orden || "", // Nuevo campo
     });
+    setEditId(escuela.id);
+    setIsEditMode(true);
     setIsModalOpen(true);
   };
 
-  const handleDeleteEscuela = async () => {
-    if (!selectedEscuela) return;
+  const handleDelete = async (id) => {
     try {
-      await deleteDoc(doc(db, "escuelas", selectedEscuela.id));
-      toast.success("Escuela eliminada correctamente.");
-      setIsDeleteDialogOpen(false);
-      fetchEscuelas();
+      // Crear un batch de escritura
+      const batch = writeBatch(db);
+
+      // Obtener los grados asociados a la escuela
+      const gradosQuery = query(collection(db, "grados"), where("escuela", "==", id));
+      const gradosSnapshot = await getDocs(gradosQuery);
+
+      // Eliminar las materias y grados asociados
+      gradosSnapshot.forEach(async (gradoDoc) => {
+        const gradoId = gradoDoc.id;
+
+        // Eliminar las materias asociadas al grado
+        const materiasQuery = query(collection(db, "materias"), where("gradoId", "==", gradoId));
+        const materiasSnapshot = await getDocs(materiasQuery);
+
+        materiasSnapshot.forEach((materiaDoc) => {
+          const materiaRef = doc(db, "materias", materiaDoc.id);
+          batch.delete(materiaRef); // Eliminar materia
+        });
+
+        // Eliminar el grado
+        const gradoRef = doc(db, "grados", gradoId);
+        batch.delete(gradoRef);
+      });
+
+      // Ejecutar el batch para eliminar grados y materias
+      await batch.commit();
+
+      // Eliminar la escuela
+      const escuelaRef = doc(db, "escuelas", id);
+      await deleteDoc(escuelaRef);
+
+      toast.success("Escuela y todos los datos asociados eliminados correctamente.");
+      fetchEscuelas(); // Actualizar la lista de escuelas
     } catch (error) {
-      console.error("Error al eliminar escuela:", error);
+      console.error("Error al eliminar la escuela y sus datos asociados:", error);
       toast.error("Error al eliminar la escuela.");
     }
   };
@@ -97,64 +145,133 @@ const Escuelas = () => {
   return (
     <div className="p-6 bg-gray-900 text-white min-h-screen">
       <Header />
-      <div className="flex justify-end items-center mb-4 mt-9">
-        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2">
-          <Plus size={18} /> Nueva Escuela
+
+      {/* Botón para abrir el modal alineado a la derecha */}
+      <div className="flex justify-end mb-6">
+        <button
+          onClick={() => {
+            setFormData({ nombre: "", direccion: "", telefono: "", email: "", directorNombre: "", orden: "" });
+            setIsEditMode(false);
+            setIsModalOpen(true);
+          }}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2"
+        >
+          <Plus size={20} />
+          Crear Escuela
         </button>
       </div>
 
+      {/* Lista de escuelas */}
       {escuelas.length === 0 ? (
         <p className="text-gray-400 text-center">No tienes escuelas registradas.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {escuelas.map((escuela) => (
-            <div key={escuela.id} className="bg-gray-800 p-4 rounded-lg shadow-lg relative">
-              <div className="absolute top-2 right-2 flex gap-2">
-                <button onClick={() => handleEditEscuela(escuela)} className="text-yellow-400 hover:text-yellow-500">
-                  <Edit size={18} />
+            <div
+              key={escuela.id}
+              className="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col justify-between border border-gray-700 hover:border-purple-500 transition"
+            >
+              <div>
+                <h2 className="text-2xl font-bold text-purple-400 mb-4 text-center">
+                  {escuela.nombre}
+                </h2>
+                <p className="text-gray-300 mb-2">
+                  <strong>Dirección:</strong> {escuela.direccion || "Sin dirección"}
+                </p>
+                <p className="text-gray-300 mb-2">
+                  <strong>Teléfono:</strong> {escuela.telefono || "Sin teléfono"}
+                </p>
+                <p className="text-gray-300 mb-2">
+                  <strong>Email:</strong> {escuela.email || "Sin email"}
+                </p>
+                <p className="text-gray-300 mb-2">
+                  <strong>Director:</strong> {escuela.directorNombre || "Sin director"}
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => handleEdit(escuela)}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
+                >
+                  <Pencil size={16} />
+                  Editar
                 </button>
-                <button onClick={() => { setSelectedEscuela(escuela); setIsDeleteDialogOpen(true); }} className="text-red-400 hover:text-red-500">
-                  <Trash2 size={18} />
+                <button
+                  onClick={() => handleDelete(escuela.id)}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
+                >
+                  <Trash2 size={16} />
+                  Eliminar
                 </button>
               </div>
-              <h2 className="text-xl font-bold">{escuela.nombre}</h2>
-              <p className="text-gray-400">📍 {escuela.direccion}</p>
-              <p className="text-gray-500 text-sm">📞 {escuela.telefono}</p>
-              {escuela.correo && <p className="text-gray-500 text-sm">✉️ {escuela.correo}</p>}
-              {escuela.director && <p className="text-gray-500 text-sm">👨‍🏫 Director: {escuela.director}</p>}
             </div>
           ))}
         </div>
       )}
 
-      <Dialog open={isModalOpen} onClose={() => { setIsModalOpen(false); setSelectedEscuela(null); }} className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-[400px]">
-          <h2 className="text-xl font-bold mb-4">{selectedEscuela ? "Editar Escuela" : "Crear Escuela"}</h2>
-          <form onSubmit={handleGuardarEscuela} className="space-y-3">
-            <input type="text" name="nombre" placeholder="Nombre de la Escuela" value={formData.nombre} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" required />
-            <input type="text" name="direccion" placeholder="Dirección" value={formData.direccion} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" required />
-            <input type="text" name="telefono" placeholder="Teléfono" value={formData.telefono} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" required />
-            <input type="email" name="correo" placeholder="Correo Electrónico" value={formData.correo} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" />
-            <input type="text" name="director" placeholder="Nombre del Director" value={formData.director} onChange={handleChange} className="w-full p-2 bg-gray-700 rounded" />
+      {/* Modal para crear/editar escuela */}
+      {isModalOpen && (
+        <Dialog
+          open={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+        >
+          <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-96">
+            <h2 className="text-xl font-bold text-white mb-4">
+              {isEditMode ? "Editar Escuela" : "Crear Nueva Escuela"}
+            </h2>
+            <input
+              type="text"
+              value={formData.nombre}
+              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+              placeholder="Nombre de la escuela"
+              className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
+            />
+            <input
+              type="text"
+              value={formData.direccion}
+              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+              placeholder="Dirección"
+              className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
+            />
+            <input
+              type="text"
+              value={formData.telefono}
+              onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+              placeholder="Teléfono"
+              className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
+            />
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="Email"
+              className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
+            />
+            <input
+              type="text"
+              value={formData.directorNombre}
+              onChange={(e) => setFormData({ ...formData, directorNombre: e.target.value })}
+              placeholder="Nombre del director"
+              className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
+            /> {/* Nuevo campo */}
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="bg-gray-600 px-4 py-2 rounded">Cancelar</button>
-              <button type="submit" className="bg-blue-600 px-4 py-2 rounded">Guardar</button>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddOrUpdateEscuela}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+              >
+                Guardar
+              </button>
             </div>
-          </form>
-        </div>
-      </Dialog>
-
-      <Dialog open={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-[350px] text-center">
-          <Trash2 size={40} className="text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold">¿Eliminar escuela?</h2>
-          <p className="text-gray-400">Esta acción no se puede deshacer.</p>
-          <div className="flex justify-center gap-4 mt-4">
-            <button onClick={() => setIsDeleteDialogOpen(false)} className="bg-gray-600 px-4 py-2 rounded">Cancelar</button>
-            <button onClick={handleDeleteEscuela} className="bg-red-600 px-4 py-2 rounded">Eliminar</button>
           </div>
-        </div>
-      </Dialog>
+        </Dialog>
+      )}
     </div>
   );
 };

@@ -47,6 +47,7 @@ const Alumnos = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [userData, setUserData] = useState(null);
   const [escuelas, setEscuelas] = useState([]);
+  const [grados, setGrados] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const profesorId = auth.currentUser?.uid;
 
@@ -70,6 +71,23 @@ const Alumnos = () => {
     };
 
     fetchEscuelas();
+  }, [profesorId]);
+
+  useEffect(() => {
+    const fetchGrados = async () => {
+      if (!profesorId) return;
+
+      try {
+        const q = query(collection(db, "grados"), where("profesorId", "==", profesorId));
+        const querySnapshot = await getDocs(q);
+        const gradosData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setGrados(gradosData);
+      } catch (error) {
+        console.error("Error al obtener grados:", error);
+      }
+    };
+
+    fetchGrados();
   }, [profesorId]);
 
   const fetchAlumnos = async () => {
@@ -113,12 +131,38 @@ const Alumnos = () => {
         }
       }
 
+      // Consulta para obtener las materias según la escuela, grado y sección del alumno
+      const materiasQuery = query(
+        collection(db, "materias"),
+        where("escuelaId", "==", formData.escuela),
+        where("gradoId", "==", formData.grado),
+        where("seccion", "==", formData.seccion),
+        where("profesorId", "==", profesorId)
+      );
+
+      const materiasSnapshot = await getDocs(materiasQuery);
+      const materias = materiasSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      console.log("Materias obtenidas para el alumno:", materias); // Depuración
+
+      // Agregar las materias al documento del alumno
+      const alumnoData = {
+        ...formData,
+        gradoId: grados.find((grado) => grado.grado === formData.grado && grado.escuela === formData.escuela)?.id || null, // Agregar gradoId
+        materias, // Agregar las materias al documento del alumno
+        profesorId,
+        createdAt: new Date(),
+      };
+
       if (editId) {
-        await updateDoc(doc(db, "alumnos", editId), formData);
+        await updateDoc(doc(db, "alumnos", editId), alumnoData);
         toast.success("Alumno actualizado correctamente");
       } else {
         const studentId = generateStudentId();
-        await addDoc(collection(db, "alumnos"), { ...formData, studentId, profesorId, createdAt: new Date() });
+        await addDoc(collection(db, "alumnos"), { ...alumnoData, studentId });
         toast.success("Alumno agregado correctamente");
       }
 
@@ -210,20 +254,150 @@ const Alumnos = () => {
     const doc = new jsPDF();
 
     // Título del PDF
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
-    doc.text("Información del Alumno", 14, 20);
+    doc.text("Información del Alumno", 105, 15, { align: "center" });
 
-    // Datos del alumno en formato de tabla
+    // Subtítulos
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Centro educativo: ${alumno.escuela}`, 105, 25, { align: "center" });
+    doc.text(`Alumno: ${alumno.nombre} ${alumno.apellido}`, 105, 30, { align: "center" });
+
+    // Ajustar la posición inicial de la tabla para evitar superposición
+    const startY = 40; // Espacio suficiente debajo de los subtítulos
+
+    // Datos del alumno en formato de dos columnas
+    const tableData = [
+      ["ID del Alumno", alumno.studentId || "N/A"],
+      ["Código MINED", alumno.codigo_mined || "N/A"],
+      ["Nombre", alumno.nombre || "N/A"],
+      ["Apellido", alumno.apellido || "N/A"],
+      ["Edad", alumno.edad || "N/A"],
+      ["Fecha de Nacimiento", alumno.fecha_nacimiento || "N/A"],
+      ["Género", alumno.genero || "N/A"],
+      ["Grado", alumno.grado || "N/A"],
+      ["Escuela", alumno.escuela || "N/A"],
+      ["Turno", alumno.turno || "N/A"],
+      ["Sección", alumno.seccion || "N/A"],
+      ["Móvil Alumno", alumno.movil_alumno || "N/A"],
+      ["Nombre del Padre", alumno.nombre_padre || "N/A"],
+      ["Teléfono del Padre", alumno.telefono_padre || "N/A"],
+      ["Correo del Padre", alumno.correo_padre || "N/A"],
+      ["Departamento", alumno.departamento || "N/A"],
+      ["Municipio", alumno.municipio || "N/A"],
+      ["Dirección Exacta", alumno.direccion_exacta || "N/A"],
+      ["Código Postal", alumno.codigo_postal || "N/A"],
+      ["Fecha de Ingreso", alumno.fecha_ingreso || "N/A"],
+      ["Fecha de Egreso", alumno.fecha_egreso || "N/A"],
+    ];
+
+    // Configuración de la tabla
     autoTable(doc, {
-      startY: 30,
-      head: [["Campo", "Valor"]],
-      body: Object.entries(alumno).map(([key, value]) => [key, value || ""]),
-      styles: { fontSize: 10, cellPadding: 4 },
-      headStyles: { fillColor: [41, 128, 185] },
+      startY, // Posición inicial de la tabla ajustada
+      head: [["Campo", "Valor"]], // Encabezados de la tabla
+      body: tableData,
+      styles: {
+        font: "helvetica",
+        fontSize: 10,
+        cellPadding: 4,
+      },
+      headStyles: {
+        fillColor: [41, 128, 185], // Azul bonito para el encabezado
+        textColor: [255, 255, 255], // Texto blanco
+        fontSize: 12,
+      },
+      columnStyles: {
+        0: { cellWidth: 70 }, // Ancho de la primera columna
+        1: { cellWidth: 120 }, // Ancho de la segunda columna
+      },
     });
 
     // Descargar el PDF
     doc.save(`Alumno_${alumno.nombre}_${alumno.apellido}.pdf`);
+  };
+
+  const handlePrintAlumnosPDF = () => {
+    const doc = new jsPDF();
+
+    // Título del PDF
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Lista de Alumnos", 105, 15, { align: "center" });
+
+    // Subtítulos
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text("Centro educativo: Nombre del Centro", 105, 25, { align: "center" });
+    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 105, 30, { align: "center" });
+
+    // Datos de la tabla
+    const tableData = alumnos.map((alumno, index) => [
+      index + 1, // Número de fila
+      alumno.studentId || "N/A",
+      alumno.codigo_mined || "N/A",
+      `${alumno.nombre} ${alumno.apellido}` || "N/A",
+      alumno.edad || "N/A",
+      alumno.grado || "N/A",
+      alumno.seccion || "N/A",
+      alumno.escuela || "N/A",
+    ]);
+
+    // Configuración de la tabla
+    autoTable(doc, {
+      startY: 40, // Posición inicial de la tabla
+      head: [
+        [
+          "N°",
+          "ID del Alumno",
+          "Código MINED",
+          "Nombre Completo",
+          "Edad",
+          "Grado",
+          "Sección",
+          "Escuela",
+        ],
+      ],
+      body: tableData,
+      styles: {
+        font: "helvetica",
+        fontSize: 10,
+        cellPadding: 4,
+      },
+      headStyles: {
+        fillColor: [41, 128, 185], // Azul bonito para el encabezado
+        textColor: [255, 255, 255], // Texto blanco
+        fontSize: 12,
+      },
+      alternateRowStyles: {
+        fillColor: [240, 240, 240], // Color gris claro para filas alternas
+      },
+      columnStyles: {
+        0: { cellWidth: 10 }, // Número
+        1: { cellWidth: 30 }, // ID del Alumno
+        2: { cellWidth: 30 }, // Código MINED
+        3: { cellWidth: 50 }, // Nombre Completo
+        4: { cellWidth: 15 }, // Edad
+        5: { cellWidth: 20 }, // Grado
+        6: { cellWidth: 20 }, // Sección
+        7: { cellWidth: 30 }, // Escuela
+      },
+    });
+
+    // Descargar el PDF
+    doc.save("Lista_Alumnos.pdf");
+  };
+
+  const handleSchoolSelection = (schoolId) => {
+    const selectedSchool = escuelas.find((escuela) => escuela.id === schoolId);
+    setFormData({
+      ...formData,
+      escuela: selectedSchool?.nombre || "",
+      escuelaId: selectedSchool?.id || "", // Agregar el ID de la escuela
+      grado: "",
+      seccion: "",
+      turno: "",
+    });
   };
 
   const filteredAlumnos = alumnos.filter((alumno) =>
@@ -233,11 +407,17 @@ const Alumnos = () => {
 
   return (
     <div className={`p-6 mt-8 bg-gray-900 text-white min-h-screen transition-opacity duration-300 ${isModalOpen || isDeleteModalOpen ? "opacity-50" : "opacity-100"}`}>
+      {/* Título principal */}
+      <h1 className="text-2xl font-bold text-center text-blue-400">Lista de Alumnos</h1>
+      <p className="text-gray-400 text-center mb-4">"Por una educación más organizada y accesible."</p>
+
+
       {/* Header */}
       <Header userName={userData?.nombre} />
 
-      {/* Botón Agregar Alumno */}
+      {/* Barra de búsqueda y botones */}
       <div className="flex justify-between items-center my-4">
+        {/* Input de búsqueda */}
         <input
           type="text"
           placeholder="Buscar por ID o Nombre"
@@ -245,12 +425,22 @@ const Alumnos = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="p-2 bg-gray-700 rounded w-full max-w-md text-white"
         />
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus size={18} /> Registrar Alumno
-        </button>
+
+        {/* Botones */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus size={18} /> Registrar Alumno
+          </button>
+          <button
+            onClick={handlePrintAlumnosPDF}
+            className="bg-green-600 px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2"
+          >
+            Imprimir Lista
+          </button>
+        </div>
       </div>
 
       {/* Tabla de alumnos */}
@@ -265,7 +455,7 @@ const Alumnos = () => {
               <tr>
                 <th className="p-3 text-center">Imagen</th>
                 <th className="p-3 text-center">ID</th>
-                <th className="p-3 text-center">Código MINED</th> {/* Nueva columna */}
+                <th className="p-3 text-center">Código MINED</th>
                 <th className="p-3 text-center">Nombres</th>
                 <th className="p-3 text-center">Apellido</th>
                 <th className="p-3 text-center">Edad</th>
@@ -285,12 +475,13 @@ const Alumnos = () => {
                     />
                   </td>
                   <td className="p-3">{alumno.studentId}</td>
-                  <td className="p-3">{alumno.codigo_mined}</td> {/* Mostrar Código MINED */}
+                  <td className="p-3">{alumno.codigo_mined}</td>
                   <td className="p-3">{alumno.nombre}</td>
                   <td className="p-3">{alumno.apellido}</td>
                   <td className="p-3">{alumno.edad}</td>
                   <td className="p-3">{alumno.grado}</td>
                   <td className="p-3">{alumno.escuela}</td>
+
                   <td className="p-3 flex justify-center gap-2">
                     <button onClick={() => handleEdit(alumno)} className="text-yellow-400 hover:text-yellow-300">
                       <Pencil size={20} />
@@ -308,7 +499,7 @@ const Alumnos = () => {
 
       {/* Modal de formulario */}
       <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-[90%] max-w-full md:max-w-2xl lg:max-w-4xl max-h-[calc(100vh-100px)] overflow-y-auto">
+        <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-[90%] max-w-full md:max-w-2xl lg:max-w-4xl max-h-[calc(100vh-100px)] overflow-y-auto text-gray-300">
           <h2 className="text-2xl font-bold mb-4 text-orange-400 text-center p-2">{editId ? "Editar Alumno" : "Registrar Alumno"}</h2>
           <form onSubmit={handleAddOrUpdateAlumno} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Sección: Datos del Alumno */}
@@ -403,65 +594,111 @@ const Alumnos = () => {
                 <option value="Otro">Otro</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Grado:</label>
-              <input
-                type="text"
-                name="grado"
-                value={formData.grado}
-                onChange={(e) => setFormData({ ...formData, grado: e.target.value })}
-                className="p-2 bg-gray-700 rounded w-full"
-                required
-              />
-            </div>
+
+            {/* Selector de escuelas */}
             <div>
               <label className="block text-sm text-gray-400 mb-1">Escuela:</label>
               <select
-                name="escuela"
-                value={formData.escuela}
-                onChange={(e) => setFormData({ ...formData, escuela: e.target.value })}
+                value={formData.escuelaId || ""}
+                onChange={(e) => handleSchoolSelection(e.target.value)}
                 className="p-2 bg-gray-700 rounded w-full"
                 required
               >
                 <option value="">Seleccionar Escuela</option>
                 {escuelas.map((escuela) => (
-                  <option key={escuela.id} value={escuela.nombre}>
+                  <option key={escuela.id} value={escuela.id}>
                     {escuela.nombre}
                   </option>
                 ))}
               </select>
             </div>
+
+            {/* Selector de Nivel Educativo */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Turno:</label>
+              <label className="block text-sm text-gray-400 mb-1">Nivel Educativo:</label>
               <select
-                name="turno"
-                value={formData.turno}
-                onChange={(e) => setFormData({ ...formData, turno: e.target.value })}
+                value={formData.nivel_educativo}
+                onChange={(e) => {
+                  setFormData({ ...formData, nivel_educativo: e.target.value });
+                }}
                 className="p-2 bg-gray-700 rounded w-full"
                 required
               >
-                <option value="">Seleccionar Turno</option>
-                <option value="Matutino">Matutino</option>
-                <option value="Vespertino">Vespertino</option>
-                <option value="Nocturno">Nocturno</option>
+                <option value="">Seleccionar Nivel Educativo</option>
+                {[...new Set(grados.map((grado) => grado.nivelEducativo))].map((nivel, index) => (
+                  <option key={index} value={nivel}>
+                    {nivel}
+                  </option>
+                ))}
               </select>
             </div>
+
+            {/*Selector  de grados  */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Grado:</label>
+              <select
+                value={formData.grado}
+                onChange={(e) => {
+                  setFormData({ ...formData, grado: e.target.value, seccion: "", turno: "" });
+                }}
+                className="p-2 bg-gray-700 rounded w-full"
+                required
+                disabled={!formData.escuela} // Deshabilitar si no se selecciona una escuela
+              >
+                <option value="">Seleccionar Grado</option>
+                {grados
+                  .filter((grado) => grado.escuela === formData.escuela)
+                  .map((grado) => (
+                    <option key={grado.id} value={grado.grado}>
+                      {grado.grado}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            {/*Selector  de secciones  */}
             <div>
               <label className="block text-sm text-gray-400 mb-1">Sección:</label>
               <select
-                name="seccion"
                 value={formData.seccion}
                 onChange={(e) => setFormData({ ...formData, seccion: e.target.value })}
                 className="p-2 bg-gray-700 rounded w-full"
                 required
+                disabled={!formData.grado} // Deshabilitar si no se selecciona un grado
               >
                 <option value="">Seleccionar Sección</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-                <option value="D">D</option>
+                {grados
+                  .find((grado) => grado.grado === formData.grado && grado.escuela === formData.escuela)?.secciones?.map(
+                    (seccion, index) => (
+                      <option key={index} value={seccion}>
+                        {seccion}
+                      </option>
+                    )
+                  )}
               </select>
             </div>
+            {/*Selector  de turnos  */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Turno:</label>
+              <select
+                value={formData.turno}
+                onChange={(e) => setFormData({ ...formData, turno: e.target.value })}
+                className="p-2 bg-gray-700 rounded w-full"
+                required
+                disabled={!formData.grado} // Deshabilitar si no se selecciona un grado
+              >
+                <option value="">Seleccionar Turno</option>
+                {/* Obtener los turnos únicos de los grados */}
+                {[...new Set(grados
+                  .filter((grado) => grado.grado === formData.grado && grado.escuela === formData.escuela)
+                  .map((grado) => grado.turno)
+                )].map((turno, index) => (
+                  <option key={index} value={turno}>
+                    {turno}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/*Selector  de móviles  */}
             <div>
               <label className="block text-sm text-gray-400 mb-1">Móvil Alumno:</label>
               <input

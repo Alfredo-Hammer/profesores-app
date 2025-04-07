@@ -1,214 +1,404 @@
 import React, { useState, useEffect } from "react";
-import { db } from "../firebaseConfig"; // Asegúrate de importar tu configuración de Firebase
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { db } from "../firebaseConfig";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "../firebaseConfig"; // Asegúrate de importar tu configuración de Firebase
+import { auth } from "../firebaseConfig";
+import Header from "../components/Header";
 import { toast } from "react-toastify";
 
 const Materias = () => {
-  const [formData, setFormData] = useState({
-    nombre: "",
-    descripcion: "",
-    profesor: "",
-    horario: "",
-  });
+  const [user] = useAuthState(auth);
+  const [escuelas, setEscuelas] = useState([]);
+  const [grados, setGrados] = useState([]);
+  const [secciones, setSecciones] = useState([]);
   const [materias, setMaterias] = useState([]);
-  const [showForm, setShowForm] = useState(false); // Controlar si se muestra el formulario
-  const [editingMateria, setEditingMateria] = useState(null); // Controlar si se está editando una materia
-  const [user] = useAuthState(auth); // Obtener el usuario autenticado
+  const [selectedEscuela, setSelectedEscuela] = useState(null);
+  const [selectedGrado, setSelectedGrado] = useState(null);
+  const [selectedSeccion, setSelectedSeccion] = useState(null);
+  const [turnos, setTurnos] = useState([]);
+  const [selectedAlumno, setSelectedAlumno] = useState(null); // Declarar el estado para el alumno seleccionado
 
+  const [materiaForm, setMateriaForm] = useState({ nombre: "", descripcion: "" });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingMateriaId, setEditingMateriaId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Obtener las escuelas del profesor
   useEffect(() => {
-    const fetchMaterias = async () => {
+    const fetchEscuelas = async () => {
       if (!user) return;
 
       try {
-        const q = query(collection(db, "materias"), where("profesorId", "==", user.uid));
-        const querySnapshot = await getDocs(q);
-        const materiasData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const escuelasQuery = query(collection(db, "escuelas"), where("profesorId", "==", user.uid));
+        const escuelasSnapshot = await getDocs(escuelasQuery);
+        const escuelasData = escuelasSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setEscuelas(escuelasData);
+
+        if (escuelasData.length === 1) {
+          setSelectedEscuela(escuelasData[0]);
+        }
+      } catch (error) {
+        console.error("Error al obtener las escuelas:", error);
+      }
+    };
+
+    fetchEscuelas();
+  }, [user]);
+
+  // Obtener los grados y turnos de la escuela seleccionada
+  useEffect(() => {
+    const fetchGradosYTurnos = async () => {
+      if (!selectedEscuela) return;
+
+      try {
+        const gradosQuery = query(
+          collection(db, "grados"),
+          where("profesorId", "==", user.uid),
+          where("escuela", "==", selectedEscuela.nombre)
+        );
+        const gradosSnapshot = await getDocs(gradosQuery);
+        const gradosData = gradosSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setGrados(gradosData);
+
+        // Extraer turnos únicos de los grados
+        const turnosUnicos = [
+          ...new Set(gradosData.map((grado) => grado.turno).filter(Boolean)),
+        ];
+        setTurnos(turnosUnicos);
+
+        if (gradosData.length === 1) {
+          setSelectedGrado(gradosData[0]);
+        }
+      } catch (error) {
+        console.error("Error al obtener los grados y turnos:", error);
+      }
+    };
+
+    fetchGradosYTurnos();
+  }, [selectedEscuela, user]);
+
+  // Obtener las secciones del grado seleccionado
+  useEffect(() => {
+    if (selectedGrado) {
+      setSecciones(selectedGrado.secciones || []);
+
+      if (selectedGrado.secciones && selectedGrado.secciones.length === 1) {
+        setSelectedSeccion(selectedGrado.secciones[0]);
+      }
+    }
+  }, [selectedGrado]);
+
+  // Obtener las materias de la sección seleccionada
+  useEffect(() => {
+    const fetchMaterias = async () => {
+      if (!selectedGrado || !selectedSeccion || !user) return;
+
+      try {
+        const materiasQuery = query(
+          collection(db, "materias"),
+          where("gradoId", "==", selectedGrado.id),
+          where("seccion", "==", selectedSeccion),
+          where("profesorId", "==", user.uid) // Filtrar por el profesor
+        );
+        const materiasSnapshot = await getDocs(materiasQuery);
+        const materiasData = materiasSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
         setMaterias(materiasData);
       } catch (error) {
         console.error("Error al obtener las materias:", error);
-        toast.error("No se pudieron cargar las materias");
       }
     };
 
     fetchMaterias();
-  }, [user]);
+  }, [selectedGrado, selectedSeccion, user]);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!user) {
-      toast.error("Debes estar autenticado para realizar esta acción");
-      return;
-    }
+  // Crear una nueva materia
+  const handleCreateMateria = async () => {
+    if (!selectedGrado || !selectedSeccion || !user || !selectedEscuela) return;
 
     try {
-      if (editingMateria) {
-        // Actualizar materia existente
-        await updateDoc(doc(db, "materias", editingMateria.id), formData);
-        toast.success("Materia actualizada correctamente");
-        setMaterias((prev) =>
-          prev.map((materia) =>
-            materia.id === editingMateria.id ? { ...materia, ...formData } : materia
-          )
-        );
-      } else {
-        // Crear nueva materia
-        const docRef = await addDoc(collection(db, "materias"), {
-          ...formData,
-          profesorId: user.uid, // Asociar la materia al ID del profesor
-          createdAt: new Date(),
-        });
-        toast.success("Materia guardada correctamente");
-        setMaterias((prev) => [...prev, { id: docRef.id, ...formData, profesorId: user.uid }]);
-      }
+      const newMateria = {
+        ...materiaForm,
+        turno: selectedGrado.turno || "Matutino", // Agregar el campo turno con un valor predeterminado
+        alumnoId: selectedAlumno ? selectedAlumno.id : null, // Verificar si selectedAlumno no es null
+        profesorId: user.uid, // Asociar la materia al profesor
+        escuelaId: selectedEscuela.id, // Asociar la materia a la escuela
+        gradoId: selectedGrado.id, // Asociar la materia al grado
+        nombreGrado: selectedGrado.grado, // Agregar el nombre del grado
+        nombreEscuela: selectedEscuela.nombre, // Agregar el nombre de la escuela
+        seccion: selectedSeccion, // Asegurar que el campo seccion se incluya
+        createdAt: new Date(),
+      };
 
-      setFormData({
-        nombre: "",
-        descripcion: "",
-        profesor: "",
-        horario: "",
-      });
-      setShowForm(false); // Ocultar el formulario después de guardar
-      setEditingMateria(null); // Salir del modo de edición
+      const materiasRef = collection(db, "materias");
+      const docRef = await addDoc(materiasRef, newMateria);
+
+      // Actualizar el estado de materias con la nueva materia
+      setMaterias((prevMaterias) => [...prevMaterias, { id: docRef.id, ...newMateria }]);
+
+      setMateriaForm({ nombre: "", descripcion: "", turno: "" });
+      setIsModalOpen(false);
+      toast.success("Materia creada exitosamente.");
     } catch (error) {
-      console.error("Error al guardar la materia:", error);
-      toast.error("No se pudo guardar la materia");
+      console.error("Error al crear la materia:", error);
+      toast.error("Error al crear la materia.");
     }
   };
 
-  const handleDelete = async (id) => {
+  // Editar una materia existente
+  const handleEditMateria = async () => {
+    if (!editingMateriaId) return;
+
     try {
-      await deleteDoc(doc(db, "materias", id));
-      setMaterias((prev) => prev.filter((materia) => materia.id !== id));
-      toast.success("Materia eliminada correctamente");
+      const materiaRef = doc(db, "materias", editingMateriaId);
+      await updateDoc(materiaRef, {
+        nombre: materiaForm.nombre,
+        descripcion: materiaForm.descripcion,
+      });
+
+      setMaterias(
+        materias.map((materia) =>
+          materia.id === editingMateriaId
+            ? { ...materia, ...materiaForm }
+            : materia
+        )
+      );
+
+      setMateriaForm({ nombre: "", descripcion: "", turno: "" });
+      setIsEditing(false);
+      setEditingMateriaId(null);
+      setIsModalOpen(false);
+      toast.success("Materia actualizada exitosamente.");
+    } catch (error) {
+      console.error("Error al editar la materia:", error);
+      toast.error("Error al editar la materia.");
+    }
+  };
+
+  // Eliminar una materia
+  const handleDeleteMateria = async (materiaId) => {
+    try {
+      const materiaRef = doc(db, "materias", materiaId);
+      await deleteDoc(materiaRef);
+
+      setMaterias(materias.filter((materia) => materia.id !== materiaId));
+      toast.success("Materia eliminada exitosamente.");
     } catch (error) {
       console.error("Error al eliminar la materia:", error);
-      toast.error("No se pudo eliminar la materia");
+      toast.error("Error al eliminar la materia.");
     }
-  };
-
-  const handleEdit = (materia) => {
-    setFormData(materia);
-    setEditingMateria(materia);
-    setShowForm(true);
   };
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-gray-900 text-white p-6">
-      <div className="w-full max-w-5xl flex justify-between items-center mb-6 mt-6">
-        <h2 className="text-3xl font-bold">Gestión de Materias</h2>
-        <button
-          onClick={() => {
-            setShowForm(true);
-            setEditingMateria(null); // Asegurarse de que no esté en modo edición
-            setFormData({
-              nombre: "",
-              descripcion: "",
-              profesor: "",
-              horario: "",
-            });
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition"
-        >
-          Crear Materia
-        </button>
+      <Header />
+      <div className="w-full text-center mb-6">
+        <h1 className="text-3xl font-bold text-purple-400">Gestión de Materias</h1>
+        <p className="text-gray-400">Consulta las materias organizadas por escuela, grado y sección.</p>
       </div>
 
-      {materias.length === 0 && !showForm ? (
-        <div className="text-center">
-          <p className="text-gray-400 text-sm mb-4">No tienes materias registradas.</p>
+      {/* Escuelas */}
+      {!selectedEscuela ? (
+        <div className="w-full">
+          <h2 className="text-2xl font-bold text-purple-400 mb-4">Escuelas</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {escuelas.map((escuela) => (
+              <div
+                key={escuela.id}
+                className="bg-gray-800 p-6 rounded-lg shadow-lg border-2 border-gray-700 hover:border-purple-500 transition"
+              >
+                <h3 className="text-xl font-bold text-purple-400 mb-3 text-center">{escuela.nombre}</h3>
+                <p className="text-gray-400 mb-2">
+                  <strong>Dirección:</strong> {escuela.direccion || "Sin dirección"}
+                </p>
+                <button
+                  onClick={() => setSelectedEscuela(escuela)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md flex items-center gap-2"
+                >
+                  Ver Grados
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-      ) : showForm ? (
-        <form onSubmit={handleSubmit} className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
-          <h3 className="text-xl font-bold mb-4">{editingMateria ? "Editar Materia" : "Nueva Materia"}</h3>
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <label className="block text-gray-300">Nombre de la Materia</label>
-              <input
-                type="text"
-                name="nombre"
-                className="w-full p-3 rounded bg-gray-700"
-                placeholder="Ejemplo: Matemáticas"
-                value={formData.nombre}
-                onChange={handleChange}
-                required
-              />
-            </div>
+      ) : null}
 
-            <div>
-              <label className="block text-gray-300">Descripción</label>
-              <textarea
-                name="descripcion"
-                className="w-full p-3 rounded bg-gray-700"
-                placeholder="Breve descripción de la materia"
-                value={formData.descripcion}
-                onChange={handleChange}
-                required
-              ></textarea>
-            </div>
+      {/* Grados */}
+      {selectedEscuela && !selectedGrado ? (
+        <div className="w-full">
+          <h2 className="text-2xl font-bold text-purple-400 mb-4">Grados en {selectedEscuela.nombre}</h2>
+          <button
+            onClick={() => setSelectedEscuela(null)}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md mb-4"
+          >
+            Volver a Escuelas
+          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {grados.map((grado) => (
+              <div
+                key={grado.id}
+                className="bg-gray-800 p-6 rounded-lg shadow-lg border-2 border-gray-700 hover:border-purple-500 transition"
+              >
+                <h3 className="text-xl font-bold text-purple-400 mb-3 text-center">{grado.grado}</h3>
+                <p className="text-gray-400 mb-2">
+                  <strong>Nivel Educativo:</strong> {grado.nivelEducativo}
+                </p>
+                <button
+                  onClick={() => setSelectedGrado(grado)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md"
+                >
+                  Ver Secciones
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
-            <div>
-              <label className="block text-gray-300">Profesor Asignado</label>
-              <input
-                type="text"
-                name="profesor"
-                className="w-full p-3 rounded bg-gray-700"
-                placeholder="Nombre del profesor"
-                value={formData.profesor}
-                onChange={handleChange}
-                required
-              />
-            </div>
+      {/* Secciones */}
+      {selectedGrado && !selectedSeccion ? (
+        <div className="w-full">
+          <h2 className="text-2xl font-bold text-purple-400 mb-4">Secciones en {selectedGrado.grado}</h2>
+          <button
+            onClick={() => setSelectedGrado(null)}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md mb-4"
+          >
+            Volver a Grados
+          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {secciones.map((seccion, index) => (
+              <div
+                key={index}
+                className="bg-gray-800 p-6 rounded-lg shadow-lg border-2 border-gray-700 hover:border-purple-500 transition"
+              >
+                <h3 className="text-xl font-bold text-purple-400 mb-3 text-center">Sección {seccion}</h3>
+                <button
+                  onClick={() => setSelectedSeccion(seccion)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md"
+                >
+                  Ver Materias
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
-            <div>
-              <label className="block text-gray-300">Horario</label>
-              <input
-                type="text"
-                name="horario"
-                className="w-full p-3 rounded bg-gray-700"
-                placeholder="Ejemplo: Lunes y Miércoles 10:00 - 12:00"
-                value={formData.horario}
-                onChange={handleChange}
-                required
-              />
+      {/* Materias */}
+      {selectedSeccion && (
+        <div className="w-full flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-purple-400">
+            Materias en Sección {selectedSeccion}
+          </h2>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md"
+          >
+            Crear Materia
+          </button>
+        </div>
+      )}
+
+      {/* Modal para crear/editar materias */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-96">
+            <h3 className="text-xl font-bold text-purple-400 mb-4">
+              {isEditing ? "Editar Materia" : "Crear Materia"}
+            </h3>
+            {/* Input para el nombre de la materia */}
+            <input
+              type="text"
+              placeholder="Nombre de la materia"
+              value={materiaForm.nombre}
+              onChange={(e) =>
+                setMateriaForm({ ...materiaForm, nombre: e.target.value })
+              }
+              className="w-full p-2 mb-4 border border-gray-700 rounded bg-gray-900 text-white"
+            />
+            {/* Textarea para la descripción */}
+            <textarea
+              placeholder="Descripción de la materia"
+              value={materiaForm.descripcion}
+              onChange={(e) =>
+                setMateriaForm({ ...materiaForm, descripcion: e.target.value })
+              }
+              className="w-full p-2 mb-4 border border-gray-700 rounded bg-gray-900 text-white"
+            ></textarea>
+
+            <div className="flex justify-end">
+              <button
+                onClick={isEditing ? handleEditMateria : handleCreateMateria}
+                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded"
+              >
+                {isEditing ? "Guardar Cambios" : "Crear Materia"}
+              </button>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded ml-4"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
+        </div>
+      )}
 
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded mt-6 transition"
-          >
-            {editingMateria ? "Actualizar Materia" : "Guardar Materia"}
-          </button>
-        </form>
+      {/* Lista de materias */}
+      {selectedSeccion && materias.length === 0 ? (
+        <p className="text-gray-400 text-center mt-4">No hay materias disponibles en esta sección.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {materias.map((materia) => (
-            <div key={materia.id} className="bg-gray-800 p-6 rounded-lg shadow-lg">
-              <h3 className="text-xl font-bold mb-2">{materia.nombre}</h3>
+            <div
+              key={materia.id}
+              className="bg-gray-800 p-6 rounded-lg shadow-lg border-2 border-gray-700 hover:border-purple-500 transition"
+            >
+              <h3 className="text-xl font-bold text-purple-400 mb-3 text-center">
+                {materia.nombre}
+              </h3>
               <p className="text-gray-400 mb-2">{materia.descripcion}</p>
-              <p className="text-gray-300">
-                <strong>Profesor:</strong> {materia.profesor}
+              <p className="text-gray-400 mb-2">
+                <strong>Grado:</strong> {materia.nombreGrado || "No especificado"}
               </p>
-              <p className="text-gray-300">
-                <strong>Horario:</strong> {materia.horario}
+              <p className="text-gray-400 mb-2">
+                <strong>Escuela:</strong> {materia.nombreEscuela || "No especificado"}
               </p>
-              <div className="flex justify-end mt-4 space-x-2">
+              <div className="flex justify-between">
                 <button
-                  onClick={() => handleEdit(materia)}
-                  className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded transition"
+                  onClick={() => {
+                    setMateriaForm({
+                      nombre: materia.nombre,
+                      descripcion: materia.descripcion,
+                    });
+                    setIsEditing(true);
+                    setEditingMateriaId(materia.id);
+                    setIsModalOpen(true);
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
                 >
                   Editar
                 </button>
                 <button
-                  onClick={() => handleDelete(materia.id)}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded transition"
+                  onClick={() => handleDeleteMateria(materia.id)}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
                 >
                   Eliminar
                 </button>

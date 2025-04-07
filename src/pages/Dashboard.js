@@ -74,6 +74,10 @@ const Dashboard = () => {
   return (
     <div className="p-6 bg-gray-900 text-white min-h-screen">
       <Header />
+      {/* Título principal */}
+      <h1 className="text-2xl font-bold text-center text-blue-400">Sistema de Educación</h1>
+      <h2 className="text-xl font-bold text-center text-orange-400 mb-6">EduHammer</h2>
+      <p className="text-gray-400 text-center">"Por una educación más organizada y accesible."</p>
       {loading ? (
         <p className="text-center">Cargando datos...</p>
       ) : (
