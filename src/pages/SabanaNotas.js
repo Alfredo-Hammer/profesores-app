@@ -4,6 +4,17 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "../firebaseConfig";
 import Header from "../components/Header";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
+// Función para convertir nota numérica a cualitativa
+const notaCualitativa = (nota) => {
+  if (nota >= 90) return "AA";
+  if (nota >= 76) return "AS";
+  if (nota >= 60) return "AF";
+  if (nota >= 40) return "AI";
+  return "";
+};
 
 const SabanaNotas = () => {
   const [escuelas, setEscuelas] = useState([]);
@@ -16,48 +27,32 @@ const SabanaNotas = () => {
   const [user] = useAuthState(auth);
 
   useEffect(() => {
-    const fetchEscuelasGradosSecciones = async () => {
+    const fetchData = async () => {
       if (!user) return;
 
       try {
-        // Obtener escuelas
-        const escuelasQuery = query(collection(db, "escuelas"), where("profesorId", "==", user.uid));
-        const escuelasSnapshot = await getDocs(escuelasQuery);
-        const escuelasData = escuelasSnapshot.docs.map((doc) => doc.data().nombre);
-        setEscuelas(escuelasData);
+        const escuelasSnapshot = await getDocs(
+          query(collection(db, "escuelas"), where("profesorId", "==", user.uid))
+        );
+        setEscuelas(escuelasSnapshot.docs.map((doc) => doc.data().nombre));
 
-        // Obtener grados y secciones desde la colección de alumnos
-        const alumnosQuery = query(collection(db, "alumnos"), where("profesorId", "==", user.uid));
-        const alumnosSnapshot = await getDocs(alumnosQuery);
-
-        // Extraer grados únicos
-        const gradosData = [...new Set(alumnosSnapshot.docs.map((doc) => doc.data().grado))];
-        setGrados(gradosData);
-
-        // Extraer secciones únicos
-        const seccionesData = [...new Set(alumnosSnapshot.docs.map((doc) => doc.data().seccion))];
-        setSecciones(seccionesData);
+        const alumnosSnapshot = await getDocs(
+          query(collection(db, "alumnos"), where("profesorId", "==", user.uid))
+        );
+        setGrados([...new Set(alumnosSnapshot.docs.map((doc) => doc.data().grado))]);
+        setSecciones([...new Set(alumnosSnapshot.docs.map((doc) => doc.data().seccion))]);
       } catch (error) {
-        console.error("Error al obtener escuelas, grados y secciones:", error);
+        console.error("Error al cargar datos:", error);
       }
     };
 
-    fetchEscuelasGradosSecciones();
+    fetchData();
   }, [user]);
 
   const fetchAlumnos = async () => {
-    if (!escuelaSeleccionada || !gradoSeleccionado || !seccionSeleccionada) {
-      console.error("Faltan valores seleccionados: escuela, grado o sección");
-      return;
-    }
+    if (!escuelaSeleccionada || !gradoSeleccionado || !seccionSeleccionada) return;
 
     try {
-      console.log("Valores seleccionados:", {
-        escuela: escuelaSeleccionada,
-        grado: gradoSeleccionado,
-        seccion: seccionSeleccionada,
-      });
-
       const alumnosQuery = query(
         collection(db, "alumnos"),
         where("escuela", "==", escuelaSeleccionada),
@@ -65,143 +60,197 @@ const SabanaNotas = () => {
         where("seccion", "==", seccionSeleccionada),
         where("profesorId", "==", user.uid)
       );
-
       const alumnosSnapshot = await getDocs(alumnosQuery);
-      console.log("Documentos obtenidos de alumnos:", alumnosSnapshot.docs.length);
 
       const alumnosData = await Promise.all(
         alumnosSnapshot.docs.map(async (doc) => {
-          const alumno = { id: doc.id, ...doc.data() };
-
-          // Obtener materias y notas del alumno
-          const materiasRef = collection(db, `alumnos/${doc.id}/materias`);
-
-          const materiasSnapshot = await getDocs(materiasRef);
-          where("profesorId", "==", user.uid) // Filtrar materias por profesorId
-          const materias = materiasSnapshot.docs.map((materiaDoc) => ({
-            id: materiaDoc.id,
-            ...materiaDoc.data(),
-          }));
-
+          const alumno = { id: doc.id, ...doc.data() }; // Asegúrate de que `apellidos` esté incluido aquí
+          const calificacionesQuery = query(
+            collection(db, "calificaciones"),
+            where("alumnoId", "==", doc.id)
+          );
+          const calificacionesSnapshot = await getDocs(calificacionesQuery);
+          const materias = calificacionesSnapshot.docs.map((c) => {
+            const data = c.data();
+            return {
+              nombre: data.nombreMateria,
+              calificaciones: data.calificaciones,
+            };
+          });
           return { ...alumno, materias };
         })
       );
 
-      console.log("Datos de alumnos procesados:", alumnosData);
       setAlumnos(alumnosData);
     } catch (error) {
       console.error("Error al obtener alumnos:", error);
     }
   };
 
+  // Obtener todas las materias únicas para mostrar en columnas
+  const materiasUnicas = Array.from(
+    new Set(alumnos.flatMap((a) => a.materias.map((m) => m.nombre)))
+  );
+
+  const exportarPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("Sábana de Notas", 14, 10);
+
+    const tableColumnHeaders = [
+      "N°",
+      "Nombre y Apellido",
+      "Código MINED",
+      ...materiasUnicas.flatMap((materia) => [
+        `${materia} IBIM CUAL`,
+        `${materia} IBIM CUANT`,
+        `${materia} IIBIM CUAL`,
+        `${materia} IIBIM CUANT`,
+        `${materia} ISEM CUAL`,
+        `${materia} ISEM CUANT`,
+      ]),
+      "Promedio",
+    ];
+
+    const tableRows = alumnos.map((alumno, index) => {
+      const row = [
+        index + 1,
+        `${alumno.nombre} ${alumno.apellido}`,
+        alumno.codigo_mined,
+      ];
+
+      materiasUnicas.forEach((materia) => {
+        const m = alumno.materias.find((mat) => mat.nombre === materia);
+        const cal = m?.calificaciones || {};
+        row.push(
+          notaCualitativa(cal.I) || "N/A",
+          cal.I || "N/A",
+          notaCualitativa(cal.II) || "N/A",
+          cal.II || "N/A",
+          notaCualitativa(cal.semestre1) || "N/A",
+          cal.semestre1 || "N/A"
+        );
+      });
+
+      const totalNotas = alumno.materias.reduce((sum, materia) => {
+        const cal = materia.calificaciones || {};
+        return sum + (cal.I || 0) + (cal.II || 0) + (cal.semestre1 || 0);
+      }, 0);
+      const totalMaterias = alumno.materias.length * 3; // 3 notas por materia (I, II, semestre1)
+      const promedio = totalMaterias > 0 ? (totalNotas / totalMaterias).toFixed(2) : "N/A";
+
+      row.push(promedio);
+
+      return row;
+    });
+
+    autoTable(doc, {
+      head: [tableColumnHeaders],
+      body: tableRows,
+      startY: 20,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [240, 240, 240] },
+    });
+
+    doc.save("SabanaNotas.pdf");
+  };
+
   return (
-    <div className="p-5 bg-gray-900 text-gray-400 min-h-screen">
+    <div className="p-5 bg-gray-900 text-gray-200 min-h-screen">
       <Header />
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-center">Sábana de Notas</h1>
-        <p className="text-center text-gray-400">Selecciona una escuela, un grado y una sección para ver la lista de alumnos y sus notas.</p>
-      </div>
+      <h1 className="text-2xl font-bold mb-4 text-center">Sábana de Notas</h1>
 
-      <div className="flex justify-center gap-4 mb-6">
-        <select
-          value={escuelaSeleccionada}
-          onChange={(e) => setEscuelaSeleccionada(e.target.value)}
-          className="p-2 border border-gray-500 rounded-lg bg-gray-800 text-gray-300"
-        >
+      <div className="flex flex-wrap gap-4 justify-center mb-6">
+        <select value={escuelaSeleccionada} onChange={(e) => setEscuelaSeleccionada(e.target.value)} className="p-2 bg-gray-800 border rounded">
           <option value="">Seleccionar Escuela</option>
-          {escuelas.map((escuela) => (
-            <option key={escuela} value={escuela}>{escuela}</option>
-          ))}
+          {escuelas.map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
-
-        <select
-          value={gradoSeleccionado}
-          onChange={(e) => setGradoSeleccionado(e.target.value)}
-          className="p-2 border border-gray-500 rounded-lg bg-gray-800 text-gray-300"
-        >
+        <select value={gradoSeleccionado} onChange={(e) => setGradoSeleccionado(e.target.value)} className="p-2 bg-gray-800 border rounded">
           <option value="">Seleccionar Grado</option>
-          {grados.map((grado) => (
-            <option key={grado} value={grado}>{grado}</option>
-          ))}
+          {grados.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
-
-        <select
-          value={seccionSeleccionada}
-          onChange={(e) => setSeccionSeleccionada(e.target.value)}
-          className="p-2 border border-gray-500 rounded-lg bg-gray-800 text-gray-300"
-        >
+        <select value={seccionSeleccionada} onChange={(e) => setSeccionSeleccionada(e.target.value)} className="p-2 bg-gray-800 border rounded">
           <option value="">Seleccionar Sección</option>
-          {secciones.map((seccion) => (
-            <option key={seccion} value={seccion}>{seccion}</option>
-          ))}
+          {secciones.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-
-        <button
-          onClick={fetchAlumnos}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          Mostrar
-        </button>
+        <button onClick={fetchAlumnos} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Mostrar</button>
       </div>
 
       {alumnos.length > 0 && (
-        <div className="mt-6">
-          <h2 className="text-xl font-bold mb-4">Lista de Alumnos y Notas</h2>
-          <table className="table-auto border-collapse border border-gray-300 w-full text-left">
+        <div className="overflow-x-auto">
+          <button
+            onClick={exportarPDF}
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 mb-4 flex justify-end"
+          >
+            Imprimir a PDF
+          </button>
+          <table className="table-auto border-collapse w-full text-sm">
             <thead>
-              <tr>
-                <th className="border border-gray-300 px-4 py-2">Nombres y Apellidos</th>
-                <th className="border border-gray-300 px-4 py-2">Código MINED</th>
-                {alumnos[0]?.materias.map((materia) => (
-                  <th key={materia.id} colSpan={3} className="border border-gray-300 px-4 py-2 text-center">
-                    {materia.nombre}
+              <tr className="bg-gray-800 text-white">
+                <th className="border px-2 py-1" rowSpan={3}>N°</th>
+                <th className="border px-2 py-1" rowSpan={3}>Nombre y Apellido</th>
+                <th className="border px-2 py-1" rowSpan={3}>Código MINED</th>
+                {materiasUnicas.map((materia) => (
+                  <th key={materia} className="border px-2 py-1 text-center bg-gray-800 text-white" colSpan={6}>
+                    {materia}
                   </th>
                 ))}
+                <th className="border px-2 py-1 text-center bg-gray-800 text-white" rowSpan={3}>Promedio</th>
               </tr>
-              <tr>
-                <th className="border border-gray-300 px-4 py-2"></th>
-                <th className="border border-gray-300 px-4 py-2"></th>
-                {alumnos[0]?.materias.map((materia) => (
+              <tr className="bg-gray-700 text-white">
+                {materiasUnicas.map((materia) => (
                   <>
-                    <th key={`${materia.id}-ib`} className="border border-gray-300 px-4 py-2 text-center">IB</th>
-                    <th key={`${materia.id}-iib`} className="border border-gray-300 px-4 py-2 text-center">IIB</th>
-                    <th key={`${materia.id}-is`} className="border border-gray-300 px-4 py-2 text-center">IS</th>
+                    <th key={`${materia}-IBIM`} className="border px-2 py-1 text-center bg-gray-600 text-white" colSpan={2}>IBIM</th>
+                    <th key={`${materia}-IIBIM`} className="border px-2 py-1 text-center bg-gray-600 text-white" colSpan={2}>IIBIM</th>
+                    <th key={`${materia}-ISEM`} className="border px-2 py-1 text-center bg-gray-600 text-white" colSpan={2}>ISEM</th>
+                  </>
+                ))}
+              </tr>
+              <tr className="bg-gray-600 text-white">
+                {materiasUnicas.map((materia) => (
+                  <>
+                    <th key={`${materia}-IBIM-CUAL`} className="border px-2 py-1 text-center bg-gray-500 text-white">CUAL</th>
+                    <th key={`${materia}-IBIM-CUANT`} className="border px-2 py-1 text-center bg-gray-500 text-white">CUANT</th>
+                    <th key={`${materia}-IIBIM-CUAL`} className="border px-2 py-1 text-center bg-gray-500 text-white">CUAL</th>
+                    <th key={`${materia}-IIBIM-CUANT`} className="border px-2 py-1 text-center bg-gray-500 text-white">CUANT</th>
+                    <th key={`${materia}-ISEM-CUAL`} className="border px-2 py-1 text-center bg-gray-500 text-white">CUAL</th>
+                    <th key={`${materia}-ISEM-CUANT`} className="border px-2 py-1 text-center bg-gray-500 text-white">CUANT</th>
                   </>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {alumnos.map((alumno) => (
-                <tr key={alumno.id}>
-                  <td className="border border-gray-300 px-4 py-2">{alumno.nombre} {alumno.apellidos}</td>
-                  <td className="border border-gray-300 px-4 py-2">{alumno.codigo_mined}</td>
-                  {alumno.materias.map((materia) => (
-                    <>
-                      <td
-                        key={`${materia.id}-ib`}
-                        className={`border border-gray-300 px-4 py-2 text-center ${materia.bimestre1 < 60 ? "text-red-500 font-bold" : ""
-                          }`}
-                      >
-                        {materia.bimestre1 || "N/A"}
-                      </td>
-                      <td
-                        key={`${materia.id}-iib`}
-                        className={`border border-gray-300 px-4 py-2 text-center ${materia.bimestre2 < 60 ? "text-red-500 font-bold" : ""
-                          }`}
-                      >
-                        {materia.bimestre2 || "N/A"}
-                      </td>
-                      <td
-                        key={`${materia.id}-is`}
-                        className={`border border-gray-300 px-4 py-2 text-center ${materia.calificacionSemestre1 < 60 ? "text-red-500 font-bold" : ""
-                          }`}
-                      >
-                        {materia.calificacionSemestre1 || "N/A"}
-                      </td>
-                    </>
-                  ))}
-                </tr>
-              ))}
+              {alumnos.map((alumno, index) => {
+                // Calcular el promedio de todas las notas del alumno
+                const totalNotas = alumno.materias.reduce((sum, materia) => {
+                  const cal = materia.calificaciones || {};
+                  return sum + (cal.I || 0) + (cal.II || 0) + (cal.semestre1 || 0);
+                }, 0);
+                const totalMaterias = alumno.materias.length * 3; // 3 notas por materia (I, II, semestre1)
+                const promedio = totalMaterias > 0 ? (totalNotas / totalMaterias).toFixed(2) : "N/A";
+
+                return (
+                  <tr key={alumno.id} className="bg-gray-900 hover:bg-gray-700">
+                    <td className="border px-2 py-1 text-center">{index + 1}</td>
+                    <td className="border px-2 py-1 whitespace-nowrap">{alumno.nombre} {alumno.apellido}</td>
+                    <td className="border px-2 py-1 text-center whitespace-nowrap">{alumno.codigo_mined}</td>
+                    {materiasUnicas.flatMap((materia) => {
+                      const m = alumno.materias.find((mat) => mat.nombre === materia);
+                      const cal = m?.calificaciones || {};
+                      return [
+                        <td key={`${materia}-IBIM-CUAL-${alumno.id}`} className="border px-2 py-1 text-center">{notaCualitativa(cal.I)}</td>,
+                        <td key={`${materia}-IBIM-CUANT-${alumno.id}`} className={`border px-2 py-1 text-center ${cal.I < 60 ? "text-red-500 font-semibold" : "text-green-500 font-semibold"}`}>{cal.I || "N/A"}</td>,
+                        <td key={`${materia}-IIBIM-CUAL-${alumno.id}`} className="border px-2 py-1 text-center">{notaCualitativa(cal.II)}</td>,
+                        <td key={`${materia}-IIBIM-CUANT-${alumno.id}`} className={`border px-2 py-1 text-center ${cal.II < 60 ? "text-red-500 font-semibold" : "text-green-500 font-semibold"}`}>{cal.II || "N/A"}</td>,
+                        <td key={`${materia}-ISEM-CUAL-${alumno.id}`} className="border px-2 py-1 text-center">{notaCualitativa(cal.semestre1)}</td>,
+                        <td key={`${materia}-ISEM-CUANT-${alumno.id}`} className={`border px-2 py-1 text-center ${cal.semestre1 < 60 ? "text-red-500 font-semibold" : "text-green-500 font-semibold"}`}>{cal.semestre1 || "N/A"}</td>
+                      ];
+                    })}
+                    <td className="border px-2 py-1 text-center font-bold">{promedio}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

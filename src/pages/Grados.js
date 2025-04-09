@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../firebaseConfig";
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from "firebase/firestore";
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "../firebaseConfig";
 import { Dialog } from "@headlessui/react";
@@ -25,13 +25,20 @@ const Grados = () => {
   const [user] = useAuthState(auth);
 
   useEffect(() => {
-    fetchEscuelas(); // Cargar las escuelas creadas por el profesor
+    const unsubscribeEscuelas = fetchEscuelas(); // Escuchar cambios en escuelas
+    let unsubscribeGrados = null;
+
     if (selectedEscuela) {
-      fetchGrados(); // Cargar los grados de la escuela seleccionada
+      unsubscribeGrados = fetchGrados(); // Escuchar cambios en grados de la escuela seleccionada
     }
+
+    return () => {
+      unsubscribeEscuelas(); // Detener la escucha de cambios en escuelas
+      if (unsubscribeGrados) unsubscribeGrados(); // Detener la escucha de cambios en grados
+    };
   }, [user, selectedEscuela]);
 
-  const fetchGrados = async () => {
+  const fetchGrados = () => {
     if (!user || !selectedEscuela) return;
     try {
       const gradosQuery = query(
@@ -39,35 +46,45 @@ const Grados = () => {
         where("profesorId", "==", user.uid),
         where("escuela", "==", selectedEscuela.nombre)
       );
-      const gradosSnapshot = await getDocs(gradosQuery);
-      const gradosData = gradosSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
 
-      // Ordenar los grados por el campo "orden" en forma ascendente
-      const gradosOrdenados = gradosData.sort((a, b) => a.orden - b.orden);
-      setGrados(gradosOrdenados);
+      // Escuchar cambios en tiempo real
+      const unsubscribe = onSnapshot(gradosQuery, (snapshot) => {
+        const gradosData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        // Ordenar los grados por el campo "orden" en forma ascendente
+        const gradosOrdenados = gradosData.sort((a, b) => a.orden - b.orden);
+        setGrados(gradosOrdenados);
+      });
+
+      return unsubscribe;
     } catch (error) {
       console.error("Error al obtener grados:", error);
     }
   };
 
-  const fetchEscuelas = async () => {
+  const fetchEscuelas = () => {
     if (!user) return;
     try {
       const escuelasQuery = query(collection(db, "escuelas"), where("profesorId", "==", user.uid));
-      const escuelasSnapshot = await getDocs(escuelasQuery);
-      const escuelasData = escuelasSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        nombre: doc.data().nombre,
-      }));
-      setEscuelas(escuelasData);
 
-      // Si solo hay una escuela, seleccionarla automáticamente
-      if (escuelasData.length === 1) {
-        setSelectedEscuela(escuelasData[0]);
-      }
+      // Escuchar cambios en tiempo real
+      const unsubscribe = onSnapshot(escuelasQuery, (snapshot) => {
+        const escuelasData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          nombre: doc.data().nombre,
+        }));
+        setEscuelas(escuelasData);
+
+        // Si solo hay una escuela, seleccionarla automáticamente
+        if (escuelasData.length === 1) {
+          setSelectedEscuela(escuelasData[0]);
+        }
+      });
+
+      return unsubscribe;
     } catch (error) {
       console.error("Error al obtener escuelas:", error);
     }

@@ -40,7 +40,7 @@ const Login = () => {
         {/* Sección de títulos */}
         <div className="md:w-1/2 text-left mb-8 md:mb-0">
           <h2 className="text-2xl font-semibold text-orange-400">Sistema Educativo</h2>
-          <h1 className="text-4xl font-bold text-blue-400 mb-4">EduHammer</h1>
+          <h1 className="text-4xl font-bold text-blue-400 mb-4">AOC</h1>
           <p className="text-gray-300 text-lg">
             "Por una educación más organizada y accesible."
           </p>

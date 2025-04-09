@@ -11,6 +11,9 @@ const Tareas = () => {
   const [tareas, setTareas] = useState([]);
   const [materias, setMaterias] = useState([]);
   const [escuelas, setEscuelas] = useState([]);
+  const [grados, setGrados] = useState([]);
+  const [secciones, setSecciones] = useState([]);
+  const estadosTarea = ["Pendiente", "En Progreso", "Completada"];
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     titulo: "",
@@ -19,6 +22,9 @@ const Tareas = () => {
     puntos: "",
     materia: "",
     escuela: "",
+    grado: "",
+    seccion: "",
+    estado: "",
     comentarios: "",
   });
   const [editId, setEditId] = useState(null);
@@ -54,18 +60,58 @@ const Tareas = () => {
     setEscuelas(escuelasData);
   };
 
+  const fetchGrados = async (escuelaId) => {
+    if (!profesorId || !escuelaId) return;
+    try {
+      const q = query(collection(db, "grados"), where("profesorId", "==", profesorId), where("escuelaId", "==", escuelaId));
+      const querySnapshot = await getDocs(q);
+      const gradosData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setGrados(gradosData);
+    } catch (error) {
+      console.error("Error al obtener grados:", error);
+    }
+  };
+
+  const fetchSecciones = (gradoId) => {
+    const gradoSeleccionado = grados.find((grado) => grado.id === gradoId);
+    if (gradoSeleccionado) {
+      setSecciones(gradoSeleccionado.secciones || []);
+    }
+  };
+
   const handleAddOrUpdateTarea = async (e) => {
     e.preventDefault();
     if (!profesorId) return;
 
     try {
+      const escuelaSeleccionada = escuelas.find((escuela) => escuela.id === formData.escuela);
+      const gradoSeleccionado = grados.find((grado) => grado.id === formData.grado);
+
+      const tareaData = {
+        ...formData,
+        escuela: escuelaSeleccionada?.nombre || "",
+        grado: gradoSeleccionado?.grado || "",
+      };
+
       if (editId) {
-        await updateDoc(doc(db, "tareas", editId), formData);
+        await updateDoc(doc(db, "tareas", editId), tareaData);
       } else {
-        await addDoc(collection(db, "tareas"), { ...formData, profesorId, createdAt: new Date() });
+        await addDoc(collection(db, "tareas"), { ...tareaData, profesorId, createdAt: new Date() });
       }
+
       setIsModalOpen(false);
-      setFormData({ titulo: "", descripcion: "", fechaEntrega: "", puntos: "", materia: "", escuela: "", comentarios: "" });
+      setFormData({
+        titulo: "",
+        descripcion: "",
+        fechaEntrega: "",
+        puntos: "",
+        materia: "",
+        escuela: "",
+        grado: "",
+        seccion: "",
+        estado: "",
+        comentarios: "",
+      });
       setEditId(null);
       fetchTareas();
     } catch (error) {
@@ -117,6 +163,16 @@ const Tareas = () => {
     setIsModalOpen(true);
   };
 
+  const handleSchoolSelection = (escuelaId) => {
+    setFormData({ ...formData, escuela: escuelaId, grado: "", seccion: "" });
+    fetchGrados(escuelaId);
+  };
+
+  const handleGradeSelection = (gradoId) => {
+    setFormData({ ...formData, grado: gradoId, seccion: "" });
+    fetchSecciones(gradoId);
+  };
+
   return (
     <div className="p-6 bg-gray-900 text-white min-h-screen">
       <Header />
@@ -130,23 +186,38 @@ const Tareas = () => {
       ) : (
         <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {tareas.map((tarea) => (
-            <li key={tarea.id} className="bg-gray-800 p-4 rounded-lg flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-bold">{tarea.titulo}</h3>
-                <p className="text-gray-400">{tarea.descripcion}</p>
-                <p className="text-sm text-gray-500">Entrega: {tarea.fechaEntrega}</p>
-                <p className="text-sm text-gray-500">Puntos: {tarea.puntos}</p>
-                <p className="text-sm text-gray-500">Materia: {tarea.materia}</p>
-                <p className="text-sm text-gray-500">Escuela: {tarea.escuela}</p>
-                <p className="text-sm text-gray-500">Comentarios: {tarea.comentarios || "Sin comentarios"}</p>
+            <li key={tarea.id} className="bg-gray-800 p-4 rounded-lg relative">
+              {/* Estado de la tarea */}
+              <div
+                className={`absolute top-2 right-2 px-3 py-1 rounded-full text-xs font-bold ${tarea.estado === "Pendiente"
+                  ? "bg-yellow-500 text-black"
+                  : tarea.estado === "En Progreso"
+                    ? "bg-blue-500 text-white"
+                    : "bg-green-500 text-white"
+                  }`}
+              >
+                {tarea.estado}
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => handleEdit(tarea)} className="text-yellow-400 hover:text-yellow-300">
-                  <Pencil size={20} />
-                </button>
-                <button onClick={() => confirmDelete(tarea.id)} className="text-red-500 hover:text-red-300">
-                  <Trash2 size={20} />
-                </button>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-bold">{tarea.titulo}</h3>
+                  <p className="text-gray-400">{tarea.descripcion}</p>
+                  <p className="text-sm text-gray-500">Entrega: {tarea.fechaEntrega}</p>
+                  <p className="text-sm text-gray-500">Puntos: {tarea.puntos}</p>
+                  <p className="text-sm text-gray-500">Materia: {tarea.materia}</p>
+                  <p className="text-sm text-gray-500">Escuela: {tarea.escuela}</p>
+                  <p className="text-sm text-gray-500">Grado: {tarea.grado}</p>
+                  <p className="text-sm text-gray-500">Sección: {tarea.seccion}</p>
+                  <p className="text-sm text-gray-500">Comentarios: {tarea.comentarios || "Sin comentarios"}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleEdit(tarea)} className="text-yellow-400 hover:text-yellow-300">
+                    <Pencil size={20} />
+                  </button>
+                  <button onClick={() => confirmDelete(tarea.id)} className="text-red-500 hover:text-red-300">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
             </li>
           ))}
@@ -194,28 +265,56 @@ const Tareas = () => {
               required
             />
             <select
-              value={formData.materia}
-              onChange={(e) => setFormData({ ...formData, materia: e.target.value })}
-              className="p-2 bg-gray-700 rounded w-full"
-              required
-            >
-              <option value="">Seleccionar Materia</option>
-              {materias.map((materia) => (
-                <option key={materia.id} value={materia.nombre}>
-                  {materia.nombre}
-                </option>
-              ))}
-            </select>
-            <select
               value={formData.escuela}
-              onChange={(e) => setFormData({ ...formData, escuela: e.target.value })}
+              onChange={(e) => handleSchoolSelection(e.target.value)}
               className="p-2 bg-gray-700 rounded w-full"
               required
             >
               <option value="">Seleccionar Escuela</option>
               {escuelas.map((escuela) => (
-                <option key={escuela.id} value={escuela.nombre}>
+                <option key={escuela.id} value={escuela.id}>
                   {escuela.nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              value={formData.grado}
+              onChange={(e) => handleGradeSelection(e.target.value)}
+              className="p-2 bg-gray-700 rounded w-full"
+              required
+              disabled={!formData.escuela}
+            >
+              <option value="">Seleccionar Grado</option>
+              {grados.map((grado) => (
+                <option key={grado.id} value={grado.id}>
+                  {grado.grado}
+                </option>
+              ))}
+            </select>
+            <select
+              value={formData.seccion}
+              onChange={(e) => setFormData({ ...formData, seccion: e.target.value })}
+              className="p-2 bg-gray-700 rounded w-full"
+              required
+              disabled={!formData.grado}
+            >
+              <option value="">Seleccionar Sección</option>
+              {secciones.map((seccion, index) => (
+                <option key={index} value={seccion}>
+                  {seccion}
+                </option>
+              ))}
+            </select>
+            <select
+              value={formData.estado}
+              onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+              className="p-2 bg-gray-700 rounded w-full"
+              required
+            >
+              <option value="">Seleccionar Estado</option>
+              {estadosTarea.map((estado, index) => (
+                <option key={index} value={estado}>
+                  {estado}
                 </option>
               ))}
             </select>

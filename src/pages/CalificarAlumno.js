@@ -96,9 +96,9 @@ const CalificarAlumno = () => {
           const calificacionesData = {};
           calificacionesSnapshot.forEach((doc) => {
             const data = doc.data();
-            calificacionesData[data.materiaId] = data.calificaciones;
+            calificacionesData[data.materiaId] = data.calificaciones; // Asociar las calificaciones por materiaId
           });
-          setCalificaciones(calificacionesData);
+          setCalificaciones(calificacionesData); // Guardar las calificaciones en el estado
         }
       } catch (error) {
         console.error("Error al obtener las calificaciones:", error);
@@ -130,6 +130,7 @@ const CalificarAlumno = () => {
         const calificacionData = {
           alumnoId: alumno.id,
           materiaId,
+          nombreMateria: materiasDisponibles.find((materia) => materia.id === materiaId)?.nombre || "Materia Desconocida",
           calificaciones: calificaciones[materiaId],
           createdAt: new Date(),
         };
@@ -166,12 +167,12 @@ const CalificarAlumno = () => {
         <div className="mt-6 relative">
           <div className="overflow-x-auto">
             <table className="table-auto w-full text-left text-gray-400">
-              <thead>
+              <thead className="bg-gray-800 text-gray-500 text-center">
                 <tr>
                   <th className="px-4 py-2">Materia</th>
                   <th className="px-4 py-2">I Bimestre</th>
                   <th className="px-4 py-2">II Bimestre</th>
-                  <th className="px-4 py-2">Semestre 1</th> {/* Mover Semestre 1 aquí */}
+                  <th className="px-4 py-2">Semestre 1</th>
                   <th className="px-4 py-2">III Bimestre</th>
                   <th className="px-4 py-2">IV Bimestre</th>
                   <th className="px-4 py-2">Semestre 2</th>
@@ -182,95 +183,52 @@ const CalificarAlumno = () => {
                 {materiasDisponibles.map((materia) => (
                   <tr key={materia.id}>
                     <td className="border px-4 py-2">{materia.nombre}</td>
-                    <td
-                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.I !== undefined
-                        ? calificaciones[materia.id]?.I < 60
-                          ? "text-red-500"
-                          : "text-green-500"
-                        : ""
-                        }`}
-                    >
+                    <td className="border px-4 py-2 text-center">
                       <input
                         type="number"
                         value={calificaciones[materia.id]?.I || ""}
                         onChange={(e) => handleCalificacionChange(materia.id, "I", e.target.value)}
-                        className="w-full bg-gray-800 text-white p-1 rounded"
+                        className={`w-full bg-gray-800 text-white p-1 rounded ${calificaciones[materia.id]?.I < 60 ? "text-red-500" : ""}`}
                       />
                     </td>
-                    <td
-                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.II !== undefined
-                        ? calificaciones[materia.id]?.II < 60
-                          ? "text-red-500"
-                          : "text-green-500"
-                        : ""
-                        }`}
-                    >
+                    <td className="border px-4 py-2 text-center">
                       <input
                         type="number"
                         value={calificaciones[materia.id]?.II || ""}
                         onChange={(e) => handleCalificacionChange(materia.id, "II", e.target.value)}
-                        className="w-full bg-gray-800 text-white p-1 rounded"
+                        className={`w-full bg-gray-800 text-white p-1 rounded ${calificaciones[materia.id]?.II < 60 ? "text-red-500" : ""}`}
                       />
                     </td>
                     <td
-                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.semestre1 !== undefined
-                        ? calificaciones[materia.id]?.semestre1 < 60
-                          ? "text-red-500"
-                          : "text-green-500"
-                        : ""
-                        }`}
+                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.semestre1 < 60 ? "text-red-500" : "text-green-500"}`}
                     >
-                      {calificaciones[materia.id]?.semestre1?.toFixed(2) || "0.00"}
-                    </td> {/* Mover Semestre 1 aquí */}
-                    <td
-                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.III !== undefined
-                        ? calificaciones[materia.id]?.III < 60
-                          ? "text-red-500"
-                          : "text-green-500"
-                        : ""
-                        }`}
-                    >
+                      {calificaciones[materia.id]?.semestre1?.toFixed(2) || "N/A"}
+                    </td>
+                    <td className="border px-4 py-2 text-center">
                       <input
                         type="number"
                         value={calificaciones[materia.id]?.III || ""}
                         onChange={(e) => handleCalificacionChange(materia.id, "III", e.target.value)}
-                        className="w-full bg-gray-800 text-white p-1 rounded"
+                        className={`w-full bg-gray-800 text-white p-1 rounded ${calificaciones[materia.id]?.III < 60 ? "text-red-500" : ""}`}
                       />
                     </td>
-                    <td
-                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.IV !== undefined
-                        ? calificaciones[materia.id]?.IV < 60
-                          ? "text-red-500"
-                          : "text-green-500"
-                        : ""
-                        }`}
-                    >
+                    <td className="border px-4 py-2 text-center">
                       <input
                         type="number"
                         value={calificaciones[materia.id]?.IV || ""}
                         onChange={(e) => handleCalificacionChange(materia.id, "IV", e.target.value)}
-                        className="w-full bg-gray-800 text-white p-1 rounded"
+                        className={`w-full bg-gray-800 text-white p-1 rounded ${calificaciones[materia.id]?.IV < 60 ? "text-red-500" : ""}`}
                       />
                     </td>
                     <td
-                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.semestre2 !== undefined
-                        ? calificaciones[materia.id]?.semestre2 < 60
-                          ? "text-red-500"
-                          : "text-green-500"
-                        : ""
-                        }`}
+                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.semestre2 < 60 ? "text-red-500" : "text-green-500"}`}
                     >
-                      {calificaciones[materia.id]?.semestre2?.toFixed(2) || "0.00"}
+                      {calificaciones[materia.id]?.semestre2?.toFixed(2) || "N/A"}
                     </td>
                     <td
-                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.final !== undefined
-                        ? calificaciones[materia.id]?.final < 60
-                          ? "text-red-500"
-                          : "text-green-500"
-                        : ""
-                        }`}
+                      className={`border px-4 py-2 text-center ${calificaciones[materia.id]?.final < 60 ? "text-red-500" : "text-green-500"}`}
                     >
-                      {calificaciones[materia.id]?.final?.toFixed(2) || "0.00"}
+                      {calificaciones[materia.id]?.final?.toFixed(2) || "N/A"}
                     </td>
                   </tr>
                 ))}

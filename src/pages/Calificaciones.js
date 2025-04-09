@@ -207,7 +207,7 @@ const Calificaciones = () => {
             </div>
           ) : (
             <table className="table-auto border-collapse border border-gray-300 w-full text-left">
-              <thead>
+              <thead className="bg-gray-800 text-gray-500" >
                 <tr>
                   <th className="border border-gray-300 px-4 py-2">Nombres y Apellidos</th>
                   <th className="border border-gray-300 px-4 py-2">Código MINED</th>

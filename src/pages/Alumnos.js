@@ -453,6 +453,7 @@ const Alumnos = () => {
           <table className="w-full text-left border border-gray-700 rounded-lg">
             <thead className="bg-gray-800 text-gray-500">
               <tr>
+                <th className="p-3 text-center">N°</th>
                 <th className="p-3 text-center">Imagen</th>
                 <th className="p-3 text-center">ID</th>
                 <th className="p-3 text-center">Código MINED</th>
@@ -465,8 +466,9 @@ const Alumnos = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredAlumnos.map((alumno) => (
+              {filteredAlumnos.map((alumno, index) => (
                 <tr key={alumno.id} className="border-b border-gray-700 text-center">
+                  <td className="p-3">{index + 1}</td>
                   <td className="p-3">
                     <img
                       src={alumno.imagen || placeholderImage} // Mostrar placeholder si no hay imagen
