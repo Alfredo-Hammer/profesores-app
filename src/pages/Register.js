@@ -56,6 +56,7 @@ const Register = () => {
 
       // Guardar los datos del usuario en la colección "users"
       await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid, // Agregar el campo uid
         nombre,
         apellido,
         email,

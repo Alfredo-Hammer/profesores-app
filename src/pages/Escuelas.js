@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { auth, db } from "../firebaseConfig";
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, getDoc } from "firebase/firestore";
 import { Dialog } from "@headlessui/react";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "react-toastify";
@@ -8,6 +8,7 @@ import Header from "../components/Header";
 
 const Escuelas = () => {
   const [escuelas, setEscuelas] = useState([]);
+  const [profesorNombre, setProfesorNombre] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -17,13 +18,40 @@ const Escuelas = () => {
     telefono: "",
     email: "",
     directorNombre: "",
+    logo: "", // Nuevo campo para el logo
+    descripcion: "", // Nuevo campo para la descripción
   });
   const profesorId = auth.currentUser?.uid;
 
   useEffect(() => {
     fetchEscuelas();
+    fetchProfesorNombre();
   }, []);
 
+  const fetchProfesorNombre = async () => {
+    if (!profesorId) {
+      console.error("El profesorId no está disponible.");
+      setProfesorNombre("Sin nombre");
+      return;
+    }
+
+    try {
+      console.log("Consultando el nombre del profesor con ID:", profesorId);
+      const profesorDoc = await getDoc(doc(db, "users", profesorId)); // Cambiar a getDoc para obtener el documento directamente
+
+      if (profesorDoc.exists()) {
+        const userData = profesorDoc.data();
+        console.log("Datos del profesor obtenidos:", userData);
+        setProfesorNombre(`${userData.nombre} ${userData.apellido}`);
+      } else {
+        console.warn("No se encontró un usuario con el ID proporcionado:", profesorId);
+        setProfesorNombre("Sin nombre");
+      }
+    } catch (error) {
+      console.error("Error al obtener el nombre del profesor:", error);
+      setProfesorNombre("Sin nombre");
+    }
+  };
 
   const fetchEscuelas = async () => {
     if (!profesorId) return;
@@ -76,6 +104,8 @@ const Escuelas = () => {
         telefono: "",
         email: "",
         directorNombre: "",
+        logo: "", // Nuevo campo para el logo
+        descripcion: "", // Nuevo campo para la descripción
       });
       setIsModalOpen(false);
       setIsEditMode(false);
@@ -94,6 +124,8 @@ const Escuelas = () => {
       email: escuela.email || "",
       directorNombre: escuela.directorNombre || "", // Nuevo campo
       orden: escuela.orden || "", // Nuevo campo
+      logo: escuela.logo || "", // Nuevo campo para el logo
+      descripcion: escuela.descripcion || "", // Nuevo campo para la descripción
     });
     setEditId(escuela.id);
     setIsEditMode(true);
@@ -150,7 +182,7 @@ const Escuelas = () => {
       <div className="flex justify-end mb-6">
         <button
           onClick={() => {
-            setFormData({ nombre: "", direccion: "", telefono: "", email: "", directorNombre: "", orden: "" });
+            setFormData({ nombre: "", direccion: "", telefono: "", email: "", directorNombre: "", orden: "", logo: "", descripcion: "" });
             setIsEditMode(false);
             setIsModalOpen(true);
           }}
@@ -164,17 +196,83 @@ const Escuelas = () => {
       {/* Lista de escuelas */}
       {escuelas.length === 0 ? (
         <p className="text-gray-400 text-center">No tienes escuelas registradas.</p>
+      ) : escuelas.length === 1 ? (
+        // Diseño para una sola escuela con fondo degradado
+        <div className="p-6 rounded-lg shadow-lg border border-gray-700 bg-gradient-to-r from-purple-600 via-blue-500 to-indigo-600 relative">
+          {/* Nombre del profesor */}
+          <p className="absolute top-4 left-4 text-sm text-gray-200 italic">
+            Profesor: {profesorNombre}
+          </p>
+          <div className="flex flex-col items-center">
+            {escuelas[0].logo ? (
+              <img
+                src={escuelas[0].logo}
+                alt={`Logo de ${escuelas[0].nombre}`}
+                className="w-32 h-32 object-cover rounded-full mb-4 border-4 border-white"
+              />
+            ) : (
+              <div className="w-32 h-32 bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                <span className="text-gray-400 text-sm">Sin logo</span>
+              </div>
+            )}
+            <h2 className="text-3xl font-bold text-white mb-4 text-center">{escuelas[0].nombre}</h2>
+            <p className="text-gray-200 text-center mb-4">{escuelas[0].descripcion || "Sin descripción"}</p>
+          </div>
+          <div>
+            <p className="text-gray-200 mb-2">
+              <strong>Dirección:</strong> {escuelas[0].direccion || "Sin dirección"}
+            </p>
+            <p className="text-gray-200 mb-2">
+              <strong>Teléfono:</strong> {escuelas[0].telefono || "Sin teléfono"}
+            </p>
+            <p className="text-gray-200 mb-2">
+              <strong>Email:</strong> {escuelas[0].email || "Sin email"}
+            </p>
+            <p className="text-gray-200 mb-2">
+              <strong>Director:</strong> {escuelas[0].directorNombre || "Sin director"}
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <button
+              onClick={() => handleEdit(escuelas[0])}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
+            >
+              <Pencil size={16} />
+              Editar
+            </button>
+            <button
+              onClick={() => handleDelete(escuelas[0].id)}
+              className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
+            >
+              <Trash2 size={16} />
+              Eliminar
+            </button>
+          </div>
+        </div>
       ) : (
+        // Diseño para múltiples escuelas
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {escuelas.map((escuela) => (
             <div
               key={escuela.id}
               className="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col justify-between border border-gray-700 hover:border-purple-500 transition"
             >
+              <div className="flex flex-col items-center">
+                {escuela.logo ? (
+                  <img
+                    src={escuela.logo}
+                    alt={`Logo de ${escuela.nombre}`}
+                    className="w-24 h-24 object-cover rounded-full mb-4"
+                  />
+                ) : (
+                  <div className="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                    <span className="text-gray-400 text-sm">Sin logo</span>
+                  </div>
+                )}
+                <h2 className="text-2xl font-bold text-purple-400 mb-2 text-center">{escuela.nombre}</h2>
+                <p className="text-gray-300 text-center mb-4">{escuela.descripcion || "Sin descripción"}</p>
+              </div>
               <div>
-                <h2 className="text-2xl font-bold text-purple-400 mb-4 text-center">
-                  {escuela.nombre}
-                </h2>
                 <p className="text-gray-300 mb-2">
                   <strong>Dirección:</strong> {escuela.direccion || "Sin dirección"}
                 </p>
@@ -254,7 +352,20 @@ const Escuelas = () => {
               onChange={(e) => setFormData({ ...formData, directorNombre: e.target.value })}
               placeholder="Nombre del director"
               className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
-            /> {/* Nuevo campo */}
+            />
+            <textarea
+              value={formData.descripcion}
+              onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+              placeholder="Descripción de la escuela"
+              className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
+            ></textarea>
+            <input
+              type="text"
+              value={formData.logo}
+              onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
+              placeholder="URL del logo"
+              className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
+            />
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setIsModalOpen(false)}

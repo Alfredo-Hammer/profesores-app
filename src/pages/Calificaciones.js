@@ -207,28 +207,30 @@ const Calificaciones = () => {
             </div>
           ) : (
             <table className="table-auto border-collapse border border-gray-300 w-full text-left">
-              <thead className="bg-gray-800 text-gray-500" >
+              <thead className="bg-gray-800 text-gray-500">
                 <tr>
+                  <th className="border border-gray-300 px-4 py-2">N°</th> {/* Nueva columna */}
                   <th className="border border-gray-300 px-4 py-2">Nombres y Apellidos</th>
                   <th className="border border-gray-300 px-4 py-2">Código MINED</th>
                   <th className="border border-gray-300 px-4 py-2">Grado</th>
                   <th className="border border-gray-300 px-4 py-2">Sección</th>
                   <th className="border border-gray-300 px-4 py-2">Escuela</th>
-                  <th className="border border-gray-300 px-4 py-2">Turno</th> {/* Nueva columna */}
+                  <th className="border border-gray-300 px-4 py-2">Turno</th>
                   <th className="border border-gray-300 px-4 py-2 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredAlumnos.map((alumno) => (
+                {filteredAlumnos.map((alumno, index) => (
                   <tr key={alumno.id}>
+                    <td className="border border-gray-300 px-4 py-2 text-center">{index + 1}</td> {/* Número de fila */}
                     <td className="border border-gray-300 px-4 py-2">
-                      {alumno.nombre} {alumno.apellidos}
+                      {alumno.nombre} {alumno.apellido}
                     </td>
                     <td className="border border-gray-300 px-4 py-2">{alumno.codigo_mined}</td>
                     <td className="border border-gray-300 px-4 py-2">{alumno.grado}</td>
                     <td className="border border-gray-300 px-4 py-2">{alumno.seccion}</td>
                     <td className="border border-gray-300 px-4 py-2">{alumno.escuela}</td>
-                    <td className="border border-gray-300 px-4 py-2">{alumno.turno || "Sin turno"}</td> {/* Mostrar turno */}
+                    <td className="border border-gray-300 px-4 py-2">{alumno.turno || "Sin turno"}</td>
                     <td className="border border-gray-300 px-4 py-2 text-center">
                       <button
                         onClick={() => handleCalificar(alumno)}

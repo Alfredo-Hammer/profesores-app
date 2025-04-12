@@ -245,10 +245,10 @@ const Materias = () => {
               >
                 <h3 className="text-xl font-bold text-purple-400 mb-3 text-center">{grado.grado}</h3>
                 <p className="text-gray-400 mb-2">
-                  <strong>Nivel Educativo:</strong> {grado.nivelEducativo}
+                  <strong>Secciones:</strong> {grado.secciones ? grado.secciones.join(", ") : "No especificado"}
                 </p>
                 <p className="text-gray-400 mb-2">
-                  <strong>Secciones:</strong> {grado.secciones ? grado.secciones.join(", ") : "No especificado"}
+                  <strong>Nivel Educativo:</strong> {grado.nivelEducativo}
                 </p>
                 <div className="flex justify-center mt-4">
                   <button

@@ -36,10 +36,10 @@ const Grados = () => {
       unsubscribeEscuelas(); // Detener la escucha de cambios en escuelas
       if (unsubscribeGrados) unsubscribeGrados(); // Detener la escucha de cambios en grados
     };
-  }, [user, selectedEscuela]);
+  }, [user, selectedEscuela]); // Asegúrate de incluir `selectedEscuela` como dependencia
 
   const fetchGrados = () => {
-    if (!user || !selectedEscuela) return;
+    if (!user || !selectedEscuela) return; // Verificar que `user` y `selectedEscuela` estén definidos
     try {
       const gradosQuery = query(
         collection(db, "grados"),

@@ -227,7 +227,7 @@ const Alumnos = () => {
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) {
-      setFormData((prevData) => ({ ...prevData, imagen: placeholderImage })); // Usar placeholder si no hay imagen
+      setFormData((prevData) => ({ ...prevData, imagen: placeholderImage }));
       return;
     }
 

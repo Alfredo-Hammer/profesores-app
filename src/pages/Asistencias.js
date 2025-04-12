@@ -4,57 +4,94 @@ import { collection, query, where, getDocs, addDoc, updateDoc, doc } from "fireb
 import Header from "../components/Header";
 
 const Asistencias = () => {
-  const [clases, setClases] = useState([]);
   const [alumnos, setAlumnos] = useState([]);
   const [asistencias, setAsistencias] = useState({});
-  const [selectedClase, setSelectedClase] = useState("");
+  const [turnos, setTurnos] = useState([]);
+  const [selectedTurno, setSelectedTurno] = useState("");
+  const [materiaTurno, setMateriaTurno] = useState("");
   const profesorId = auth.currentUser?.uid;
 
   useEffect(() => {
-    fetchClases();
+    fetchTurnos();
   }, []);
 
   useEffect(() => {
-    if (selectedClase) {
-      fetchAlumnos();
+    if (turnos.length > 0 && !selectedTurno) {
+      const firstTurno = turnos[0];
+      setSelectedTurno(firstTurno.id);
+      setMateriaTurno(firstTurno.materia || "No asignada");
+      fetchAlumnosPorTurno();
       fetchAsistencias();
     }
-  }, [selectedClase]);
+  }, [turnos]);
 
-  const fetchClases = async () => {
+  useEffect(() => {
+    if (selectedTurno) {
+      const turnoSeleccionado = turnos.find((turno) => turno.id === selectedTurno);
+      setMateriaTurno(turnoSeleccionado?.materia || "No asignada");
+      fetchAlumnosPorTurno();
+      fetchAsistencias();
+    }
+  }, [selectedTurno]);
+
+  const fetchTurnos = async () => {
     if (!profesorId) return;
-    const q = query(collection(db, "clases"), where("profesorId", "==", profesorId));
-    const querySnapshot = await getDocs(q);
-    setClases(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    try {
+      const q = query(collection(db, "turnos"), where("profesorId", "==", profesorId));
+      const querySnapshot = await getDocs(q);
+      setTurnos(querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    } catch (error) {
+      console.error("Error al obtener turnos:", error);
+    }
   };
 
-  const fetchAlumnos = async () => {
-    if (!profesorId || !selectedClase) return;
-    const q = query(collection(db, "alumnos"), where("profesorId", "==", profesorId));
-    const querySnapshot = await getDocs(q);
-    setAlumnos(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  const fetchAlumnosPorTurno = async () => {
+    if (!profesorId || !selectedTurno) return;
+    try {
+      // Obtén el turno seleccionado
+      const turnoSeleccionado = turnos.find((turno) => turno.id === selectedTurno);
+      if (!turnoSeleccionado) return;
+
+      // Filtra los alumnos por los campos del turno
+      const q = query(
+        collection(db, "alumnos"),
+        where("profesorId", "==", profesorId),
+        where("grado", "==", turnoSeleccionado.grado),
+        where("seccion", "==", turnoSeleccionado.seccion),
+        where("escuela", "==", turnoSeleccionado.escuela)
+      );
+
+      const querySnapshot = await getDocs(q);
+      setAlumnos(querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    } catch (error) {
+      console.error("Error al obtener alumnos por turno:", error);
+    }
   };
 
   const fetchAsistencias = async () => {
-    if (!selectedClase) return;
-    const q = query(collection(db, "asistencias"), where("claseId", "==", selectedClase));
-    const querySnapshot = await getDocs(q);
-    const data = {};
-    querySnapshot.docs.forEach(doc => {
-      data[doc.data().alumnoId] = doc.data().presente;
-    });
-    setAsistencias(data);
+    if (!selectedTurno) return;
+    try {
+      const q = query(collection(db, "asistencias"), where("turnoId", "==", selectedTurno));
+      const querySnapshot = await getDocs(q);
+      const data = {};
+      querySnapshot.docs.forEach((doc) => {
+        data[doc.data().alumnoId] = doc.data().presente;
+      });
+      setAsistencias(data);
+    } catch (error) {
+      console.error("Error al obtener asistencias:", error);
+    }
   };
 
   const marcarAsistencia = async (alumnoId, presente) => {
     const asistenciaRef = collection(db, "asistencias");
-    const asistenciaQuery = query(asistenciaRef, where("claseId", "==", selectedClase), where("alumnoId", "==", alumnoId));
+    const asistenciaQuery = query(asistenciaRef, where("turnoId", "==", selectedTurno), where("alumnoId", "==", alumnoId));
     const querySnapshot = await getDocs(asistenciaQuery);
 
     if (!querySnapshot.empty) {
       await updateDoc(doc(db, "asistencias", querySnapshot.docs[0].id), { presente });
     } else {
-      await addDoc(asistenciaRef, { claseId: selectedClase, alumnoId, presente, fecha: new Date() });
+      await addDoc(asistenciaRef, { turnoId: selectedTurno, alumnoId, presente, fecha: new Date() });
     }
 
     setAsistencias({ ...asistencias, [alumnoId]: presente });
@@ -66,53 +103,63 @@ const Asistencias = () => {
       <h1 className="text-3xl font-bold my-4">📅 Asistencias</h1>
 
       <div className="mb-4">
-        <label className="block text-gray-300">Selecciona una clase:</label>
+        <label className="block text-gray-300 mb-2">Selecciona un turno:</label>
         <select
-          className="w-full p-2 bg-gray-800 rounded"
-          value={selectedClase}
-          onChange={(e) => setSelectedClase(e.target.value)}
+          className="w-full p-3 bg-gray-800 rounded text-white"
+          value={selectedTurno}
+          onChange={(e) => setSelectedTurno(e.target.value)}
         >
-          <option value="">-- Selecciona una clase --</option>
-          {clases.map((clase) => (
-            <option key={clase.id} value={clase.id}>{clase.nombre}</option>
+          <option value="">-- Selecciona un turno --</option>
+          {turnos.map((turno) => (
+            <option key={turno.id} value={turno.id}>
+              {turno.materia} - {turno.dia} ({turno.horaInicio} - {turno.horaFin})
+            </option>
           ))}
         </select>
       </div>
 
-      {selectedClase && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border border-gray-700 rounded-lg">
-            <thead className="bg-gray-800 text-white">
-              <tr>
-                <th className="p-3 text-center">Nombre</th>
-                <th className="p-3 text-center">Apellido</th>
-                <th className="p-3 text-center">Asistencia</th>
-              </tr>
-            </thead>
-            <tbody>
+      {selectedTurno && (
+        <>
+          <p className="text-lg font-bold text-gray-300 mb-4 text-center">Materia: {materiaTurno}</p>
+          {alumnos.length === 0 ? (
+            <p className="text-center text-gray-400 mt-6">No hay alumnos inscritos en este turno.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
               {alumnos.map((alumno) => (
-                <tr key={alumno.id} className="border-b border-gray-700 text-center">
-                  <td className="p-3">{alumno.nombre}</td>
-                  <td className="p-3">{alumno.apellido}</td>
-                  <td className="p-3">
+                <div
+                  key={alumno.id}
+                  className={`p-4 rounded-lg shadow-lg ${asistencias[alumno.id] === true
+                    ? "bg-green-700"
+                    : asistencias[alumno.id] === false
+                      ? "bg-red-700"
+                      : "bg-gray-800"
+                    }`}
+                >
+                  <h2 className="text-lg font-bold">{alumno.nombre} {alumno.apellido}</h2>
+                  <p className="text-sm text-gray-300">Escuela: {alumno.escuela}</p>
+                  <p className="text-sm text-gray-300">Grado: {alumno.grado}</p>
+                  <p className="text-sm text-gray-300">Sección: {alumno.seccion}</p>
+                  <div className="flex justify-between mt-4">
                     <button
-                      className={`px-4 py-2 rounded ${asistencias[alumno.id] ? "bg-green-600" : "bg-gray-600"}`}
+                      className={`px-4 py-2 rounded ${asistencias[alumno.id] === true ? "bg-green-900" : "bg-gray-600"
+                        } hover:bg-green-800`}
                       onClick={() => marcarAsistencia(alumno.id, true)}
                     >
                       ✅ Presente
                     </button>
                     <button
-                      className={`ml-2 px-4 py-2 rounded ${asistencias[alumno.id] === false ? "bg-red-600" : "bg-gray-600"}`}
+                      className={`px-4 py-2 rounded ${asistencias[alumno.id] === false ? "bg-red-900" : "bg-gray-600"
+                        } hover:bg-red-800`}
                       onClick={() => marcarAsistencia(alumno.id, false)}
                     >
                       ❌ Ausente
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
