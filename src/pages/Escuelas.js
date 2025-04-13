@@ -21,6 +21,8 @@ const Escuelas = () => {
     logo: "", // Nuevo campo para el logo
     descripcion: "", // Nuevo campo para la descripción
   });
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const profesorId = auth.currentUser?.uid;
 
   useEffect(() => {
@@ -132,6 +134,22 @@ const Escuelas = () => {
     setIsModalOpen(true);
   };
 
+  const openConfirmModal = (id) => {
+    setDeleteId(id);
+    setIsConfirmModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await handleDelete(deleteId);
+      setIsConfirmModalOpen(false);
+      setDeleteId(null);
+    } catch (error) {
+      console.error("Error al confirmar la eliminación:", error);
+      toast.error("Error al eliminar la escuela.");
+    }
+  };
+
   const handleDelete = async (id) => {
     try {
       // Crear un batch de escritura
@@ -241,7 +259,7 @@ const Escuelas = () => {
               Editar
             </button>
             <button
-              onClick={() => handleDelete(escuelas[0].id)}
+              onClick={() => openConfirmModal(escuelas[0].id)}
               className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
             >
               <Trash2 size={16} />
@@ -295,7 +313,7 @@ const Escuelas = () => {
                   Editar
                 </button>
                 <button
-                  onClick={() => handleDelete(escuela.id)}
+                  onClick={() => openConfirmModal(escuela.id)}
                   className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
                 >
                   <Trash2 size={16} />
@@ -378,6 +396,34 @@ const Escuelas = () => {
                 className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
               >
                 Guardar
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Modal de confirmación */}
+      {isConfirmModalOpen && (
+        <Dialog
+          open={isConfirmModalOpen}
+          onClose={() => setIsConfirmModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+        >
+          <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-96">
+            <h2 className="text-xl font-bold text-white mb-4">Confirmar Eliminación</h2>
+            <p className="text-gray-300 mb-6">¿Estás seguro de que deseas eliminar esta escuela? Esta acción no se puede deshacer.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
+              >
+                Eliminar
               </button>
             </div>
           </div>

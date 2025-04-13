@@ -51,8 +51,8 @@ const CalificarAlumno = () => {
           collection(db, "materias"),
           where("gradoId", "==", alumno.gradoId),
           where("escuelaId", "==", alumno.escuelaId),
-          where("seccion", "==", alumno.seccion),
-          where("turno", "==", alumno.turno)
+          // where("seccion", "==", alumno.seccion),
+          // where("turno", "==", alumno.turno)
         );
 
         const materiasSnapshot = await getDocs(materiasQuery);
@@ -113,12 +113,19 @@ const CalificarAlumno = () => {
   }, [alumno]);
 
   const handleCalificacionChange = (materiaId, bimestre, value) => {
+    const numericValue = parseFloat(value);
+
+    if (numericValue < 0 || numericValue > 100) {
+      toast.error("El valor debe estar entre 0 y 100.");
+      return;
+    }
+
     setCalificaciones((prev) => {
       const updated = { ...prev };
       if (!updated[materiaId]) {
         updated[materiaId] = { I: 0, II: 0, III: 0, IV: 0, semestre1: 0, semestre2: 0, final: 0 };
       }
-      updated[materiaId][bimestre] = parseFloat(value) || 0;
+      updated[materiaId][bimestre] = numericValue || 0;
       updated[materiaId].semestre1 = (updated[materiaId].I + updated[materiaId].II) / 2;
       updated[materiaId].semestre2 = (updated[materiaId].III + updated[materiaId].IV) / 2;
       updated[materiaId].final =
