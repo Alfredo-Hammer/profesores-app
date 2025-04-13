@@ -64,7 +64,7 @@ const SabanaNotas = () => {
 
       const alumnosData = await Promise.all(
         alumnosSnapshot.docs.map(async (doc) => {
-          const alumno = { id: doc.id, ...doc.data() }; // Asegúrate de que `apellidos` esté incluido aquí
+          const alumno = { id: doc.id, ...doc.data() };
           const calificacionesQuery = query(
             collection(db, "calificaciones"),
             where("alumnoId", "==", doc.id)

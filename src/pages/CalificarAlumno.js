@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { doc, getDocs, collection, query, where, addDoc } from "firebase/firestore";
+import { getDocs, collection, query, where, addDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import Header from "../components/Header";
 import { toast } from "react-toastify";
