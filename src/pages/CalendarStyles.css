@@ -6,8 +6,8 @@
 }
 
 .rbc-toolbar {
-  background: #282c34;
-  color: #ffffff;
+  background-color: #1e293b;
+  color: white;
   padding: 10px;
   border-radius: 5px;
 }
@@ -27,8 +27,10 @@
 }
 
 .rbc-event {
+  border: none;
   border-radius: 5px;
   padding: 5px;
+  font-size: 14px;
   font-weight: bold;
   text-align: center;
 }
@@ -47,4 +49,8 @@
 
 .rbc-day-bg:hover {
   background: #383c4a;
+}
+
+.rbc-month-view {
+  background-color: #f8fafc;
 }

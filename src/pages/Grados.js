@@ -230,7 +230,7 @@ const Grados = () => {
       {/* Escuelas */}
       {!selectedEscuela ? (
         <div className="w-full">
-          <h2 className="text-2xl font-bold text-purple-400 mb-4">Escuelas</h2>
+          <h2 className="text-xl font-bold text-purple-400 mb-8 text-center">Gestión de Grados en Escuelas</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {escuelas.map((escuela, index) => (
               <div

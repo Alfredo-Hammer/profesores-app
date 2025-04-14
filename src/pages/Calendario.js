@@ -141,6 +141,8 @@ const CalendarPage = () => {
         endAccessor="end"
         style={{ height: 500 }}
         eventPropGetter={eventStyleGetter}
+        views={["month", "week", "day", "agenda"]} // Habilitar vistas personalizadas
+        defaultView="month" // Vista predeterminada
         onSelectEvent={(event) => {
           setSelectedEvent(event);
           setNewEvent(event);

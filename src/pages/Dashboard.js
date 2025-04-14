@@ -2,13 +2,13 @@ import React, { useEffect, useState } from "react";
 import { db, auth } from "../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Users, BookOpen, CheckCircle, School } from "lucide-react";
+import { Users, GraduationCap, CheckCircle, School } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 
 const Dashboard = () => {
   const [totalAlumnos, setTotalAlumnos] = useState(0);
-  const [totalClases, setTotalClases] = useState(0);
+  const [totalGrados, setTotalGrados] = useState(0);
   const [asistencias, setAsistencias] = useState(0);
   const [escuelas, setEscuelas] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -46,9 +46,9 @@ const Dashboard = () => {
       const alumnosSnapshot = await getDocs(alumnosQuery);
       setTotalAlumnos(alumnosSnapshot.size);
 
-      const clasesQuery = query(collection(db, "clases"), where("profesorId", "==", profesorId));
+      const clasesQuery = query(collection(db, "grados"), where("profesorId", "==", profesorId));
       const clasesSnapshot = await getDocs(clasesQuery);
-      setTotalClases(clasesSnapshot.size);
+      setTotalGrados(clasesSnapshot.size);
 
       const escuelasQuery = query(collection(db, "escuelas"), where("profesorId", "==", profesorId));
       const escuelasSnapshot = await getDocs(escuelasQuery);
@@ -66,7 +66,7 @@ const Dashboard = () => {
 
   const data = [
     { name: "Alumnos", value: totalAlumnos },
-    { name: "Clases", value: totalClases },
+    { name: "Grados", value: totalGrados },
     { name: "Asistencias", value: asistencias },
     { name: "Escuelas", value: escuelas },
   ];
@@ -87,10 +87,10 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold">Total de Alumnos</h2>
             <p className="text-3xl font-bold">{totalAlumnos}</p>
           </div>
-          <div onClick={() => navigate("/clases")} className="bg-gray-800 p-6 rounded-lg shadow-lg text-center cursor-pointer hover:bg-gray-700 transition border-green-100 border-2">
-            <BookOpen size={40} className="text-green-500 mx-auto mb-2" />
-            <h2 className="text-xl font-bold">Total de Clases</h2>
-            <p className="text-3xl font-bold">{totalClases}</p>
+          <div onClick={() => navigate("/grados")} className="bg-gray-800 p-6 rounded-lg shadow-lg text-center cursor-pointer hover:bg-gray-700 transition border-green-100 border-2">
+            <GraduationCap size={40} className="text-green-500 mx-auto mb-2" />
+            <h2 className="text-xl font-bold">Total de Grados</h2>
+            <p className="text-3xl font-bold">{totalGrados}</p>
           </div>
           <div onClick={() => navigate("/asistencias")} className="bg-gray-800 p-6 rounded-lg shadow-lg text-center cursor-pointer hover:bg-gray-700 transition border-yellow-100 border-2">
             <CheckCircle size={40} className="text-yellow-500 mx-auto mb-2" />
