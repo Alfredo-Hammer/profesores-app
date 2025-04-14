@@ -21,8 +21,10 @@ const Grados = () => {
     turno: "",
     escuela: "",
     secciones: "",
+    materias: [],
   });
   const [user] = useAuthState(auth);
+  const [materias, setMaterias] = useState([]); // Lista de materias del profesor
 
   useEffect(() => {
     const unsubscribeEscuelas = fetchEscuelas(); // Escuchar cambios en escuelas
@@ -37,6 +39,29 @@ const Grados = () => {
       if (unsubscribeGrados) unsubscribeGrados(); // Detener la escucha de cambios en grados
     };
   }, [user, selectedEscuela]); // Asegúrate de incluir `selectedEscuela` como dependencia
+
+  useEffect(() => {
+    const fetchMaterias = async () => {
+      if (!user) return;
+
+      try {
+        const materiasQuery = query(
+          collection(db, "materias"),
+          where("profesorId", "==", user.uid) // Filtrar por el profesor autenticado
+        );
+        const materiasSnapshot = await getDocs(materiasQuery);
+        const materiasData = materiasSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          nombre: doc.data().nombre,
+        }));
+        setMaterias(materiasData);
+      } catch (error) {
+        console.error("Error al obtener las materias:", error);
+      }
+    };
+
+    fetchMaterias();
+  }, [user]);
 
   const fetchGrados = () => {
     if (!user || !selectedEscuela) return; // Verificar que `user` y `selectedEscuela` estén definidos
@@ -117,6 +142,7 @@ const Grados = () => {
       const gradoData = {
         ...formData,
         secciones: formData.secciones.split(",").map((seccion) => seccion.trim()),
+        materias: formData.materias || [], // Asociar materias seleccionadas
         profesorId: user.uid,
         escuelaId: escuelas.find((escuela) => escuela.nombre === formData.escuela)?.id || null, // Asociar escuelaId
         orden, // Asignar el número de orden calculado
@@ -137,6 +163,7 @@ const Grados = () => {
         turno: "",
         escuela: "",
         secciones: "",
+        materias: [],
       });
       setIsModalOpen(false);
       setIsEditMode(false);
@@ -147,6 +174,13 @@ const Grados = () => {
     }
   };
 
+  const getMateriaNames = (materiaIds) => {
+    return materiaIds
+      .map((id) => materias.find((materia) => materia.id === id)?.nombre)
+      .filter((nombre) => nombre) // Filtrar nombres válidos
+      .join(", ");
+  };
+
   const handleEdit = (grado) => {
     setFormData({
       grado: grado.grado,
@@ -154,6 +188,7 @@ const Grados = () => {
       turno: grado.turno,
       escuela: grado.escuela,
       secciones: grado.secciones.join(", "),
+      materias: grado.materias || [],
     });
     setEditId(grado.id);
     setIsEditMode(true);
@@ -169,6 +204,25 @@ const Grados = () => {
       console.error("Error al eliminar el grado:", error);
       toast.error("Error al eliminar el grado.");
     }
+  };
+
+  const handleMateriaChange = (materiaId) => {
+    setFormData((prevFormData) => {
+      const materiasSeleccionadas = prevFormData.materias || [];
+      if (materiasSeleccionadas.includes(materiaId)) {
+        // Si la materia ya está seleccionada, eliminarla
+        return {
+          ...prevFormData,
+          materias: materiasSeleccionadas.filter((id) => id !== materiaId),
+        };
+      } else {
+        // Si la materia no está seleccionada, agregarla
+        return {
+          ...prevFormData,
+          materias: [...materiasSeleccionadas, materiaId],
+        };
+      }
+    });
   };
 
   return (
@@ -224,6 +278,7 @@ const Grados = () => {
                   turno: "",
                   escuela: selectedEscuela.nombre,
                   secciones: "",
+                  materias: [],
                 });
                 setIsEditMode(false);
                 setIsModalOpen(true);
@@ -257,6 +312,12 @@ const Grados = () => {
                       {grado.secciones && grado.secciones.length > 0
                         ? grado.secciones.join(", ")
                         : "Sin secciones"}
+                    </p>
+                    <p className="text-gray-400">
+                      <strong>Materias:</strong>{" "}
+                      {grado.materias && grado.materias.length > 0
+                        ? getMateriaNames(grado.materias)
+                        : "Sin materias seleccionadas"}
                     </p>
                   </div>
                   <div className="flex justify-end gap-2 mt-4">
@@ -330,6 +391,25 @@ const Grados = () => {
               placeholder="Secciones (separadas por comas)"
               className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
             />
+            <div className="mb-4">
+              <label className="block text-white mb-2">Selecciona las materias:</label>
+              <div className="max-h-40 overflow-y-auto bg-gray-700 p-2 rounded-md">
+                {materias.map((materia) => (
+                  <div key={materia.id} className="flex items-center mb-2">
+                    <input
+                      type="checkbox"
+                      id={`materia-${materia.id}`}
+                      checked={formData.materias.includes(materia.id)}
+                      onChange={() => handleMateriaChange(materia.id)}
+                      className="mr-2"
+                    />
+                    <label htmlFor={`materia-${materia.id}`} className="text-white">
+                      {materia.nombre}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setIsModalOpen(false)}

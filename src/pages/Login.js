@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../firebaseConfig";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth"; // Importar sendPasswordResetEmail
 
-//https://eduhammer.vercel.app/login
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [resetEmailSent, setResetEmailSent] = useState(false); // Estado para confirmar envío de correo
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -24,6 +24,21 @@ const Login = () => {
       navigate("/dashboard"); // Redirigir al Dashboard tras iniciar sesión
     } catch (error) {
       setError("Correo o contraseña incorrectos");
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      setError("Por favor, ingresa tu correo electrónico para restablecer la contraseña.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetEmailSent(true);
+      setError("");
+    } catch (error) {
+      setError("No se pudo enviar el correo de recuperación. Verifica tu correo.");
     }
   };
 
@@ -52,6 +67,11 @@ const Login = () => {
           <h2 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h2>
 
           {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+          {resetEmailSent && (
+            <p className="text-green-500 text-sm mb-4">
+              Se ha enviado un correo para restablecer tu contraseña.
+            </p>
+          )}
 
           <form onSubmit={handleLogin}>
             <div className="mb-4">
@@ -85,6 +105,15 @@ const Login = () => {
               Iniciar Sesión
             </button>
           </form>
+
+          <div className="text-center mt-4">
+            <button
+              onClick={handlePasswordReset}
+              className="text-blue-400 hover:underline text-sm"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
 
           <p className="text-center text-gray-400 mt-4">
             ¿No tienes una cuenta?{" "}

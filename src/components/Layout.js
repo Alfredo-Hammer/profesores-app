@@ -79,18 +79,21 @@ const Layout = ({ children }) => {
             text="Escuelas"
             isCollapsed={isCollapsed}
           />
-          <MenuItem
-            to="/grados"
-            icon={<GraduationCap size={20} className="text-gray-300" />}
-            text="Grados"
-            isCollapsed={isCollapsed}
-          />
+
           <MenuItem
             to="/materias"
             icon={<BookOpen size={20} className="text-purple-400" />}
             text="Materias"
             isCollapsed={isCollapsed}
           />
+
+          <MenuItem
+            to="/grados"
+            icon={<GraduationCap size={20} className="text-gray-300" />}
+            text="Grados"
+            isCollapsed={isCollapsed}
+          />
+
           {/* <MenuItem
             to="/clases"
             icon={<School size={20} className="text-yellow-400" />}

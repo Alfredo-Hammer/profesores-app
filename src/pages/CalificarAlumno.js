@@ -37,8 +37,6 @@ const CalificarAlumno = () => {
           return;
         }
 
-        console.log("Datos del alumno recibidos:", alumno); // Depuración
-
         console.log("Datos del alumno para la consulta:", {
           escuelaId: alumno.escuelaId,
           gradoId: alumno.gradoId,
@@ -46,29 +44,60 @@ const CalificarAlumno = () => {
           turno: alumno.turno,
         });
 
-        // Consulta para obtener las materias asociadas al alumno
-        const materiasQuery = query(
-          collection(db, "materias"),
-          where("gradoId", "==", alumno.gradoId),
+        // Consulta para obtener el grado del alumno
+        const gradoQuery = query(
+          collection(db, "grados"),
           where("escuelaId", "==", alumno.escuelaId),
-          // where("seccion", "==", alumno.seccion),
-          // where("turno", "==", alumno.turno)
+          where("secciones", "array-contains", alumno.seccion),
+          where("turno", "==", alumno.turno)
         );
 
-        const materiasSnapshot = await getDocs(materiasQuery);
+        const gradoSnapshot = await getDocs(gradoQuery);
 
-        if (materiasSnapshot.empty) {
-          console.warn(`No se encontraron materias para el alumno en la escuela ${alumno.escuelaId}`);
+        if (gradoSnapshot.empty) {
+          console.warn(`No se encontró el grado para el alumno en la escuela ${alumno.escuelaId}`);
           setMateriasDisponibles([]);
           toast.error("No se encontraron materias para este alumno.");
           return;
         }
 
-        // Obtener las materias asociadas
-        const materias = materiasSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        // Buscar el grado que coincida con el ID del grado del alumno
+        const gradoDoc = gradoSnapshot.docs.find((doc) => doc.id === alumno.gradoId);
+
+        if (!gradoDoc) {
+          console.warn(`No se encontró el grado con ID ${alumno.gradoId} para el alumno.`);
+          setMateriasDisponibles([]);
+          toast.error("No se encontraron materias para este alumno.");
+          return;
+        }
+
+        // Obtener las materias asociadas al grado
+        const gradoData = gradoDoc.data();
+        const materiasIds = gradoData.materias || [];
+
+        if (materiasIds.length === 0) {
+          console.warn("El grado no tiene materias asociadas.");
+          setMateriasDisponibles([]);
+          toast.error("No se encontraron materias para este alumno.");
+          return;
+        }
+
+        // Consultar las materias por sus IDs
+        const materiasQuery = query(collection(db, "materias"));
+        const materiasSnapshot = await getDocs(materiasQuery);
+
+        // Filtrar las materias que coincidan con los IDs en el array `materiasIds`
+        const materias = materiasSnapshot.docs
+          .filter((doc) => materiasIds.includes(doc.id))
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+
+        if (materias.length === 0) {
+          console.warn("No se encontraron materias que coincidan con los IDs proporcionados.");
+          toast.error("No se encontraron materias para este alumno.");
+        }
 
         console.log("Materias obtenidas:", materias); // Depuración
 

@@ -5,6 +5,7 @@ import { Dialog } from "@headlessui/react";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "react-toastify";
 import Header from "../components/Header";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const Escuelas = () => {
   const [escuelas, setEscuelas] = useState([]);
@@ -189,6 +190,20 @@ const Escuelas = () => {
     } catch (error) {
       console.error("Error al eliminar la escuela y sus datos asociados:", error);
       toast.error("Error al eliminar la escuela.");
+    }
+  };
+
+  const handleImageUpload = async (file) => {
+    try {
+      const storage = getStorage();
+      const storageRef = ref(storage, `logos/${Date.now()}_${file.name}`); // Asegura nombres únicos
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      setFormData((prev) => ({ ...prev, logo: downloadURL })); // Actualiza el estado con la URL
+      toast.success("Imagen subida correctamente.");
+    } catch (error) {
+      console.error("Error al subir la imagen:", error);
+      toast.error("Error al subir la imagen.");
     }
   };
 
@@ -382,6 +397,17 @@ const Escuelas = () => {
               value={formData.logo}
               onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
               placeholder="URL del logo"
+              className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
+            />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  handleImageUpload(file);
+                }
+              }}
               className="w-full p-2 mb-4 rounded-md bg-gray-700 text-white"
             />
             <div className="flex justify-end gap-2">

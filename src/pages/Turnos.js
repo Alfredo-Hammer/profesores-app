@@ -167,6 +167,37 @@ const Turnos = () => {
     fetchTurnos();
   }, [user]);
 
+  useEffect(() => {
+    const fetchMateriasFiltradas = async () => {
+      if (!formData.grado || !formData.escuela) {
+        setMateriasFiltradas([]);
+        return;
+      }
+
+      try {
+        // Obtener el grado seleccionado
+        const gradoSeleccionado = grados.find((grado) => grado.grado === formData.grado);
+
+        if (!gradoSeleccionado || !gradoSeleccionado.materias) {
+          setMateriasFiltradas([]);
+          return;
+        }
+
+        // Filtrar las materias del profesor según el array `materias[]` del grado
+        const materiasFiltradas = materias.filter((materia) =>
+          gradoSeleccionado.materias.includes(materia.id)
+        );
+
+        setMateriasFiltradas(materiasFiltradas);
+      } catch (error) {
+        console.error("Error al filtrar las materias:", error);
+        toast.error("No se pudieron filtrar las materias.");
+      }
+    };
+
+    fetchMateriasFiltradas();
+  }, [formData.grado, materias, grados]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
