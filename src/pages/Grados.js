@@ -25,9 +25,10 @@ const Grados = () => {
   });
   const [user] = useAuthState(auth);
   const [materias, setMaterias] = useState([]); // Lista de materias del profesor
+  const [isLoading, setIsLoading] = useState(false); // Loading state
 
   useEffect(() => {
-    const unsubscribeEscuelas = fetchEscuelas(); // Escuchar cambios en escuelas
+    fetchEscuelas(); // Realizar una consulta única para obtener las escuelas
     let unsubscribeGrados = null;
 
     if (selectedEscuela) {
@@ -35,7 +36,6 @@ const Grados = () => {
     }
 
     return () => {
-      unsubscribeEscuelas(); // Detener la escucha de cambios en escuelas
       if (unsubscribeGrados) unsubscribeGrados(); // Detener la escucha de cambios en grados
     };
   }, [user, selectedEscuela]); // Asegúrate de incluir `selectedEscuela` como dependencia
@@ -65,6 +65,7 @@ const Grados = () => {
 
   const fetchGrados = () => {
     if (!user || !selectedEscuela) return; // Verificar que `user` y `selectedEscuela` estén definidos
+    setIsLoading(true); // Start loading
     try {
       const gradosQuery = query(
         collection(db, "grados"),
@@ -82,34 +83,31 @@ const Grados = () => {
         // Ordenar los grados por el campo "orden" en forma ascendente
         const gradosOrdenados = gradosData.sort((a, b) => a.orden - b.orden);
         setGrados(gradosOrdenados);
+        setIsLoading(false); // Stop loading after data is fetched
       });
 
       return unsubscribe;
     } catch (error) {
       console.error("Error al obtener grados:", error);
+      setIsLoading(false); // Stop loading on error
     }
   };
 
-  const fetchEscuelas = () => {
+  const fetchEscuelas = async () => {
     if (!user) return;
     try {
       const escuelasQuery = query(collection(db, "escuelas"), where("profesorId", "==", user.uid));
+      const snapshot = await getDocs(escuelasQuery); // Realizar una consulta única
+      const escuelasData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        nombre: doc.data().nombre,
+      }));
+      setEscuelas(escuelasData);
 
-      // Escuchar cambios en tiempo real
-      const unsubscribe = onSnapshot(escuelasQuery, (snapshot) => {
-        const escuelasData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          nombre: doc.data().nombre,
-        }));
-        setEscuelas(escuelasData);
-
-        // Si solo hay una escuela, seleccionarla automáticamente
-        if (escuelasData.length === 1) {
-          setSelectedEscuela(escuelasData[0]);
-        }
-      });
-
-      return unsubscribe;
+      // Si solo hay una escuela, seleccionarla automáticamente
+      if (escuelasData.length === 1) {
+        setSelectedEscuela(escuelasData[0]);
+      }
     } catch (error) {
       console.error("Error al obtener escuelas:", error);
     }
@@ -260,7 +258,6 @@ const Grados = () => {
       {selectedEscuela ? (
         <div className="w-full">
           <h2 className="text-2xl font-bold text-purple-400 mb-4">Grados en {selectedEscuela.nombre}</h2>
-          {/* Mostrar el botón "Volver a Escuelas" solo si hay más de una escuela */}
           {escuelas.length > 1 && (
             <button
               onClick={() => setSelectedEscuela(null)}
@@ -289,55 +286,66 @@ const Grados = () => {
               Crear Grado
             </button>
           </div>
-          {grados.length === 0 ? (
+          {isLoading ? (
+            <p className="text-gray-400 text-center">Cargando grados...</p>
+          ) : grados.length === 0 ? (
             <p className="text-gray-400 text-center">No hay grados registrados en esta escuela.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {grados.map((grado) => (
-                <div
-                  key={grado.id}
-                  className="bg-gray-800 p-4 rounded-lg shadow-lg flex flex-col justify-between"
-                  style={{ height: "auto" }}
-                >
-                  <div>
-                    <h2 className="text-xl font-bold text-white text-center mb-4">{grado.grado}</h2>
-                    <p className="text-gray-400">
-                      <strong>Nivel Educativo:</strong> {grado.nivelEducativo || "Sin nivel educativo"}
-                    </p>
-                    <p className="text-gray-400">
-                      <strong>Turno:</strong> {grado.turno || "Sin turno"}
-                    </p>
-                    <p className="text-gray-400">
-                      <strong>Secciones:</strong>{" "}
-                      {grado.secciones && grado.secciones.length > 0
-                        ? grado.secciones.join(", ")
-                        : "Sin secciones"}
-                    </p>
-                    <p className="text-gray-400">
-                      <strong>Materias:</strong>{" "}
-                      {grado.materias && grado.materias.length > 0
-                        ? getMateriaNames(grado.materias)
-                        : "Sin materias seleccionadas"}
-                    </p>
-                  </div>
-                  <div className="flex justify-end gap-2 mt-4">
-                    <button
-                      onClick={() => handleEdit(grado)}
-                      className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-gray-800 text-white rounded-lg shadow-lg">
+                <thead>
+                  <tr className="bg-gray-700 text-left">
+                    <th className="px-6 py-3 text-sm font-medium text-gray-300 uppercase">#</th>
+                    <th className="px-6 py-3 text-sm font-medium text-gray-300 uppercase">Grado</th>
+                    <th className="px-6 py-3 text-sm font-medium text-gray-300 uppercase">Nivel Educativo</th>
+                    <th className="px-6 py-3 text-sm font-medium text-gray-300 uppercase">Turno</th>
+                    <th className="px-6 py-3 text-sm font-medium text-gray-300 uppercase">Secciones</th>
+                    <th className="px-6 py-3 text-sm font-medium text-gray-300 uppercase">Materias</th>
+                    <th className="px-6 py-3 text-sm font-medium text-gray-300 uppercase text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grados.map((grado, index) => (
+                    <tr
+                      key={grado.id}
+                      className={`border-b border-gray-700 ${index % 2 === 0 ? "bg-gray-800" : "bg-gray-700"}`}
                     >
-                      <Pencil size={16} />
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(grado.id)}
-                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
-                    >
-                      <Trash2 size={16} />
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-              ))}
+                      <td className="px-6 py-4 text-sm font-medium text-gray-200">{index + 1}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-200">{grado.grado}</td>
+                      <td className="px-6 py-4 text-sm text-gray-300">{grado.nivelEducativo || "Sin nivel educativo"}</td>
+                      <td className="px-6 py-4 text-sm text-gray-300">{grado.turno || "Sin turno"}</td>
+                      <td className="px-6 py-4 text-sm text-gray-300">
+                        {grado.secciones && grado.secciones.length > 0
+                          ? grado.secciones.join(", ")
+                          : "Sin secciones"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-300">
+                        {grado.materias && grado.materias.length > 0
+                          ? getMateriaNames(grado.materias)
+                          : "Sin materias seleccionadas"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-300 text-center">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={() => handleEdit(grado)}
+                            className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
+                          >
+                            <Pencil size={16} />
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(grado.id)}
+                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md flex items-center gap-1"
+                          >
+                            <Trash2 size={16} />
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

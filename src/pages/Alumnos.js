@@ -7,6 +7,7 @@ import Header from "../components/Header";
 import autoTable from "jspdf-autotable";
 import jsPDF from "jspdf";
 import { toast } from "react-toastify";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 import placeholderImage from "../assets/images/user.png"; // Importa la imagen de placeholder
 
@@ -231,22 +232,17 @@ const Alumnos = () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("image", file);
-
     try {
-      const res = await fetch("https://api.imgbb.com/1/upload?key=69b118d3f4ced272162ffd639bde5ce2", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setFormData((prevData) => ({ ...prevData, imagen: data.data.url }));
-      }
+      const storage = getStorage();
+      const storageRef = ref(storage, `studentImages/${Date.now()}_${file.name}`); // Ensure unique file names
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      setFormData((prevData) => ({ ...prevData, imagen: downloadURL })); // Update formData with the image URL
+      toast.success("Imagen subida correctamente.");
     } catch (error) {
       console.error("Error al subir la imagen:", error);
-      setFormData((prevData) => ({ ...prevData, imagen: placeholderImage })); // Usar placeholder en caso de error
+      toast.error("Error al subir la imagen.");
+      setFormData((prevData) => ({ ...prevData, imagen: placeholderImage })); // Use placeholder in case of error
     }
   };
 
